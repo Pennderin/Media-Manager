@@ -1,0 +1,33 @@
+{
+  "seedbox": {
+    "qbitUrl": "https://your-seedbox:8080",
+    "qbitUsername": "admin",
+    "qbitPassword": "your-qbit-password",
+    "sftpHost": "your-seedbox-hostname",
+    "sftpPort": 22,
+    "sftpUsername": "your-ssh-user",
+    "sftpPassword": "your-ssh-password",
+    "sftpRemotePath": "/home/user/downloads"
+  },
+  "paths": {
+    "staging": "/staging",
+    "nasMovies": "/media/movies",
+    "nasTVShows": "/media/tv",
+    "nasKidsMovies": "/media/kids-movies",
+    "nasAsianMovies": "/media/asian-movies",
+    "nasAsianShows": "/media/asian-shows",
+    "nasAnimeMovies": "/media/anime-movies",
+    "nasAnimeShows": "/media/anime-shows"
+  },
+  "prowlarr": {
+    "url": "http://your-prowlarr:9696",
+    "apiKey": "your-prowlarr-api-key"
+  },
+  "tmdb": {
+    "apiKey": "your-tmdb-api-key"
+  },
+  "server": {
+    "port": 9876,
+    "apiKey": ""
+  }
+}

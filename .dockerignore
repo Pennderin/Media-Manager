@@ -1,0 +1,10 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+dist
+*.bat
+docker-compose.yml
+config.template.json
+README.md
+config/
