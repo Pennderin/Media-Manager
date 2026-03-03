@@ -29,5 +29,9 @@
   "server": {
     "port": 9876,
     "apiKey": ""
+  },
+  "directToPC": {
+    "enabled": false,
+    "localPath": "C:\\Users\\tabor\\Desktop\\Torrents"
   }
 }

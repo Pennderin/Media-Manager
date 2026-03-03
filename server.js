@@ -32,7 +32,8 @@ const DEFAULT_CONFIG = {
   paths: { staging: '/staging', nasMovies: '', nasTVShows: '', nasKidsMovies: '', nasAsianMovies: '', nasAsianShows: '', nasAnimeMovies: '', nasAnimeShows: '' },
   prowlarr: { url: '', apiKey: '' },
   tmdb: { apiKey: '' },
-  server: { port: 9876, apiKey: '' }
+  server: { port: 9876, apiKey: '' },
+  directToPC: { enabled: false, localPath: 'C:\\Users\\tabor\\Desktop\\Torrents' }
 };
 
 function loadConfig() {

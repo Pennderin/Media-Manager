@@ -689,9 +689,15 @@ async function processJob(job, store) {
     const steps = [];
     if (job.options.grabUrl) steps.push('grabbing');
     if (job.options.torrentHash || job.options.grabUrl) steps.push('waiting_torrent');
-    if (job.options.doTransfer) steps.push('transferring');
-    if (job.options.doRename) steps.push('renaming');
-    if (job.options.doMove) steps.push('moving');
+    if (job.options.directToPC) {
+      // Direct-to-PC mode: after torrent completes, wait for thin client to pull, then clean up
+      steps.push('waiting_pc_transfer');
+      steps.push('pc_cleanup');
+    } else {
+      if (job.options.doTransfer) steps.push('transferring');
+      if (job.options.doRename) steps.push('renaming');
+      if (job.options.doMove) steps.push('moving');
+    }
     
     // When retrying, skip steps before the failed step
     let startIdx = 0;
@@ -704,7 +710,18 @@ async function processJob(job, store) {
       const step = steps[i];
       if (job.status === 'cancelled') return;
       job.step = step; job.status = 'running'; job.progress = ''; broadcast();
-      if (step === 'grabbing') {
+      if (step === 'waiting_pc_transfer') {
+        // Server-side just waits — the thin client does the SFTP pull and calls /api/pipeline/pcTransferDone
+        job.progress = 'Waiting for desktop client to pull files from seedbox...';
+        broadcast();
+        // Poll until thin client marks it done (or cancelled)
+        while (job.status === 'running' && job.step === 'waiting_pc_transfer') {
+          await new Promise(r => setTimeout(r, 2000));
+        }
+        if (job.status === 'cancelled') return;
+        // If step changed away from waiting_pc_transfer, the thin client completed it
+        continue;
+      } else if (step === 'grabbing') {
         job.progress = 'Adding torrent to qBittorrent...';
         broadcast();
         const result = await _addAndDetect(store, job.options.grabUrl, job.name);
@@ -786,6 +803,21 @@ async function processJob(job, store) {
             }
           } catch (e) { console.log(`[pipeline] Failed to auto-delete: ${e.message}`); }
         }
+      } else if (step === 'pc_cleanup') {
+        // Auto-delete torrent from qBittorrent after successful PC transfer
+        job.progress = 'Cleaning up seedbox...';
+        broadcast();
+        if (job.options.torrentHash) {
+          try {
+            const s = store.get('seedbox'), base = s.qbitUrl.replace(/\/$/, '');
+            const lr = await fetch(`${base}/api/v2/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: `username=${encodeURIComponent(s.qbitUsername)}&password=${encodeURIComponent(s.qbitPassword)}` });
+            const ck = (lr.headers.get('set-cookie') || '').split(';')[0];
+            await fetch(`${base}/api/v2/torrents/delete`, { method: 'POST', headers: { 'Cookie': ck, 'Content-Type': 'application/x-www-form-urlencoded' },
+              body: `hashes=${job.options.torrentHash}&deleteFiles=true` });
+            console.log(`[pipeline] Auto-deleted torrent (PC transfer): ${job.name}`);
+          } catch (e) { console.log(`[pipeline] Failed to auto-delete (PC transfer): ${e.message}`); }
+        }
       }
     }
     job.status = 'done'; job.step = 'complete'; job.progress = 'All steps complete';
@@ -836,7 +868,8 @@ function setupPipelineRoutes(app, store, auth, broadcastFn, deps) {
         doTransfer: opts.doTransfer !== false, doRename: opts.doRename !== false,
         renameType: opts.renameType || 'movie', renameQuery: opts.renameQuery || '',
         renameDb: opts.renameDb || '', episodeOverrides: {},
-        doMove: opts.doMove !== false, moveType: opts.moveType || 'movies'
+        doMove: opts.doMove !== false, moveType: opts.moveType || 'movies',
+        directToPC: opts.directToPC || false,
       }
     };
     if (opts.torrentFileNames && opts.torrentFileNames.length > 0 && job.options.doRename) {
@@ -901,6 +934,47 @@ function setupPipelineRoutes(app, store, auth, broadcastFn, deps) {
     }
     broadcast();
     res.json({ success: true });
+  });
+
+  // Direct-to-PC: thin client reports transfer progress
+  app.post('/api/pipeline/pcTransferProgress', auth, async (req, res) => {
+    const { id, progress, parallelTransfers } = req.body;
+    const j = jobs.find(x => x.id === id);
+    if (!j) return res.json({ success: false, error: 'Not found' });
+    if (j.step !== 'waiting_pc_transfer') return res.json({ success: false, error: 'Job not in PC transfer state' });
+    j.progress = progress || j.progress;
+    if (parallelTransfers !== undefined) j.parallelTransfers = parallelTransfers;
+    broadcast();
+    res.json({ success: true });
+  });
+
+  // Direct-to-PC: thin client signals transfer complete
+  app.post('/api/pipeline/pcTransferDone', auth, async (req, res) => {
+    const { id, error } = req.body;
+    const j = jobs.find(x => x.id === id);
+    if (!j) return res.json({ success: false, error: 'Not found' });
+    if (j.step !== 'waiting_pc_transfer') return res.json({ success: false, error: 'Job not in PC transfer state' });
+    if (error) {
+      j.status = 'failed'; j.error = error;
+      broadcast();
+    } else {
+      j.progress = 'PC transfer complete';
+      j.parallelTransfers = null;
+      j.step = 'pc_transfer_done'; // Advance past waiting — processJob loop will continue to pc_cleanup
+      // Don't change status — processJob loop handles it
+    }
+    broadcast();
+    res.json({ success: true });
+  });
+
+  // Get seedbox SFTP credentials for thin client PC transfer
+  app.get('/api/pipeline/seedboxSftp', auth, async (req, res) => {
+    const s = store.get('seedbox');
+    res.json({
+      success: true,
+      host: s.sftpHost, port: s.sftpPort || 22,
+      username: s.sftpUsername, password: s.sftpPassword,
+    });
   });
 
   app.post('/api/pipeline/clearFinished', auth, async (req, res) => {
