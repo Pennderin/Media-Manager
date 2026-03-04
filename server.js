@@ -32,6 +32,7 @@ const DEFAULT_CONFIG = {
   paths: { staging: '/staging', nasMovies: '', nasTVShows: '', nasKidsMovies: '', nasAsianMovies: '', nasAsianShows: '', nasAnimeMovies: '', nasAnimeShows: '' },
   prowlarr: { url: '', apiKey: '' },
   tmdb: { apiKey: '' },
+  plex: { url: '', token: '' },
   server: { port: 9876, apiKey: '' },
   directToPC: { enabled: false, localPath: 'C:\\Users\\tabor\\Desktop\\Torrents' }
 };
@@ -144,7 +145,8 @@ const { setupRenamerRoutes, buildRenamePlan, executeRenames, tmdbSearchApi, clea
 const { setupProwlarrRoutes } = require('./src/handlers/prowlarr');
 const { setupTmdbRoutes } = require('./src/handlers/tmdb');
 const { setupFilesRoutes } = require('./src/handlers/files');
-const { setupPipelineRoutes } = require('./src/handlers/pipeline');
+const { setupPipelineRoutes, getJobs: getPipelineJobs } = require('./src/handlers/pipeline');
+const { setupPlexRoutes } = require('./src/handlers/plex');
 
 // ========== ROUTES ==========
 
@@ -312,6 +314,7 @@ setupProwlarrRoutes(app, store, requireAuth);
 setupTmdbRoutes(app, store, requireAuth);
 setupFilesRoutes(app, store, requireAuth);
 setupPipelineRoutes(app, store, requireAuth, broadcast, { qbitRequest, addAndDetect, buildRenamePlan, executeRenames, tmdbSearchApi, cleanForSearch, parseMediaFilename });
+setupPlexRoutes(app, store, requireAuth, getPipelineJobs);
 
 // ========== MAGNET RECEIVE (Chrome Extension compatibility) ==========
 app.post('/magnet', (req, res) => {
