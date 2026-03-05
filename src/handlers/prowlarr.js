@@ -579,7 +579,7 @@ function setupProwlarrRoutes(app, store, auth) {
           
           if (searchQuery.length >= 3) {
             const searchUrl = `${base}/api/v1/search?query=${encodeURIComponent(searchQuery)}&type=search&limit=50`;
-            const sRes = await fetch(searchUrl, { headers });
+            const sRes = await fetch(searchUrl, { headers, signal: AbortSignal.timeout(15000) });
             if (sRes.ok) {
               const results = await sRes.json();
               // Try exact guid match first
@@ -594,8 +594,22 @@ function setupProwlarrRoutes(app, store, auth) {
                 match = results.find(r => r.title && r.title.toLowerCase() === lowerTitle);
               }
               if (match) {
-                const dlUrl = match.downloadUrl || match.magnetUrl || (match.guid && match.guid.startsWith('magnet:') ? match.guid : null);
-                if (dlUrl) return res.json({ success: true, downloadUrl: dlUrl });
+                // Only return if it's an actual magnet — Prowlarr proxy URLs expire (410)
+                const magnet = match.magnetUrl || (match.guid && match.guid.startsWith('magnet:') ? match.guid : null);
+                if (magnet) return res.json({ success: true, downloadUrl: magnet });
+                // If it's a 1337x result, scrape the magnet directly
+                if ((match.indexer || '').toLowerCase().includes('1337x') && match.infoUrl) {
+                  const infoPath = new URL(match.infoUrl).pathname;
+                  const { magnet: scrapedMagnet } = await scrape1337xMagnet(infoPath);
+                  if (scrapedMagnet) return res.json({ success: true, downloadUrl: scrapedMagnet });
+                }
+              }
+              // No magnet found via search — try all 1337x results
+              const leet = results.find(r => (r.indexer || '').toLowerCase().includes('1337x') && r.infoUrl);
+              if (leet) {
+                const infoPath = new URL(leet.infoUrl).pathname;
+                const { magnet: scrapedMagnet } = await scrape1337xMagnet(infoPath);
+                if (scrapedMagnet) return res.json({ success: true, downloadUrl: scrapedMagnet });
               }
             }
           }
