@@ -69,7 +69,7 @@ async function addAndDetect(store, url, searchName) {
 
               const tryIndexer = async (indexerId) => {
                 const url = `${prowlarrBase}/api/v1/search?query=${encodeURIComponent(searchQuery)}&type=search&limit=10&indexerIds=${indexerId}`;
-                const resp = await fetch(url, { headers: searchHeaders, signal: AbortSignal.timeout(15000) });
+                const resp = await fetch(url, { headers: searchHeaders, signal: AbortSignal.timeout(30000) });
                 if (!resp.ok) return null;
                 const results = await resp.json();
                 if (!results.length) return null;
@@ -84,10 +84,19 @@ async function addAndDetect(store, url, searchName) {
               }
 
               if (match) {
-                const dlUrl = match.downloadUrl || match.magnetUrl || (match.guid && match.guid.startsWith('magnet:') ? match.guid : null);
+                // Prefer actual magnet links over Prowlarr proxy URLs (which also expire/timeout)
+                const magnetUrl = match.magnetUrl || (match.guid && match.guid.startsWith('magnet:') ? match.guid : null);
+                const dlUrl = magnetUrl || match.downloadUrl || null;
                 if (dlUrl) {
-                  console.log(`[addAndDetect] Got fresh URL from ${match.indexer}, retrying...`);
-                  torrentResp = await fetch(dlUrl, { headers, redirect: 'follow', signal: AbortSignal.timeout(15000) });
+                  console.log(`[addAndDetect] Got fresh URL from ${match.indexer} (${magnetUrl ? 'magnet' : 'proxy'}), retrying...`);
+                  if (dlUrl.startsWith('magnet:')) {
+                    // Magnet link — send directly to qBit, skip the HTTP fetch
+                    addBody = `urls=${encodeURIComponent(dlUrl)}`;
+                    addContentType = 'application/x-www-form-urlencoded';
+                    torrentResp = { ok: true }; // satisfy the !torrentResp.ok check below
+                  } else {
+                    torrentResp = await fetch(dlUrl, { headers, redirect: 'follow', signal: AbortSignal.timeout(30000) });
+                  }
                 }
               }
             } catch (retryErr) {
