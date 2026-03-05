@@ -150,10 +150,11 @@ async function scrape1337xMagnet(infoPath) {
       if (!res.ok) continue;
       const html = await res.text();
       const magnetMatch = html.match(/href="(magnet:\?[^"]+)"/i);
-      if (magnetMatch) return magnetMatch[1];
+      const imdbMatch = html.match(/tt(\d{7,9})/);
+      if (magnetMatch) return { magnet: magnetMatch[1], imdbId: imdbMatch ? `tt${imdbMatch[1]}` : null };
     } catch {}
   }
-  return null;
+  return { magnet: null, imdbId: null };
 }
 
 async function get1337xPopular(type, period) {
@@ -521,8 +522,9 @@ function setupProwlarrRoutes(app, store, auth) {
             categories: category === 5000 ? [5000] : [2000], indexerFlags: []
           };
           try {
-            const magnet = await scrape1337xMagnet(item.infoPath);
+            const { magnet, imdbId } = await scrape1337xMagnet(item.infoPath);
             if (magnet) result.downloadUrl = magnet;
+            if (imdbId) result.imdbId = imdbId;
           } catch {}
           results.push(result);
         }
@@ -606,7 +608,7 @@ function setupProwlarrRoutes(app, store, auth) {
       const path = infoUrl || guid || '';
       if (path.includes('1337x') || path.startsWith('/torrent/')) {
         const infoPath = path.startsWith('http') ? new URL(path).pathname : path;
-        const magnet = await scrape1337xMagnet(infoPath);
+        const { magnet } = await scrape1337xMagnet(infoPath);
         if (magnet) return res.json({ success: true, downloadUrl: magnet });
       }
 
