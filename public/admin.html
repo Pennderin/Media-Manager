@@ -136,6 +136,13 @@
 </div>
 
 <div class="section">
+  <div class="section-title">Plex (Duplicate Detection)</div>
+  <div class="field"><label>Server URL</label><input id="plexUrl" placeholder="http://192.168.1.x:32400"></div>
+  <div class="field"><label>Token</label><input id="plexToken" placeholder="Find in Plex → Settings → Troubleshooting → X-Plex-Token" type="password"></div>
+  <div class="field-hint">Used to warn before grabbing content already in your library.</div>
+</div>
+
+<div class="section">
   <div class="section-title">Media Library Paths</div>
   <div class="field-hint" style="margin-bottom:12px">These are container-internal paths. They map to your NAS folders via Docker volume mounts.</div>
   <div class="field"><label>Staging (temp workspace)</label><input id="pathStaging" value="/staging"></div>
@@ -180,6 +187,8 @@ const fieldMap = {
   'prowlarr.url': 'prowlarrUrl',
   'prowlarr.apiKey': 'prowlarrApiKey',
   'tmdb.apiKey': 'tmdbApiKey',
+  'plex.url': 'plexUrl',
+  'plex.token': 'plexToken',
   'paths.staging': 'pathStaging',
   'paths.nasMovies': 'pathMovies',
   'paths.nasTVShows': 'pathTV',
