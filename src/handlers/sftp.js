@@ -6,12 +6,26 @@ const SftpClient = require('ssh2-sftp-client');
 const path = require('path');
 const fs = require('fs');
 
+// High-performance SFTP connection options
+// Large window/chunk sizes reduce flow-control pauses and burst/stall behavior
+function sftpConnectOpts(s) {
+  return {
+    host: s.sftpHost,
+    port: s.sftpPort || 22,
+    username: s.sftpUsername,
+    password: s.sftpPassword,
+    readyTimeout: 20000,
+    sock: undefined,
+    algorithms: { compress: ['none'] }, // disable compression overhead
+  };
+}
+
 function setupSftpRoutes(app, store, auth) {
   app.get('/api/sftp/test', auth, async (req, res) => {
     const sftp = new SftpClient();
     try {
       const s = store.get('seedbox');
-      await sftp.connect({ host: s.sftpHost, port: s.sftpPort || 22, username: s.sftpUsername, password: s.sftpPassword });
+      await sftp.connect(sftpConnectOpts(s));
       await sftp.end();
       res.json({ success: true });
     } catch (e) { res.json({ success: false, error: e.message }); }
@@ -21,7 +35,7 @@ function setupSftpRoutes(app, store, auth) {
     const sftp = new SftpClient();
     try {
       const s = store.get('seedbox');
-      await sftp.connect({ host: s.sftpHost, port: s.sftpPort || 22, username: s.sftpUsername, password: s.sftpPassword });
+      await sftp.connect(sftpConnectOpts(s));
       const l = await sftp.list(req.query.path || s.sftpRemotePath);
       await sftp.end();
       res.json({ success: true, files: l });
@@ -34,7 +48,7 @@ function setupSftpRoutes(app, store, auth) {
       const s = store.get('seedbox'), sp = req.body.localPath || store.get('paths.staging');
       if (!sp) throw new Error('Staging not configured');
       if (!fs.existsSync(sp)) fs.mkdirSync(sp, { recursive: true });
-      await sftp.connect({ host: s.sftpHost, port: s.sftpPort || 22, username: s.sftpUsername, password: s.sftpPassword });
+      await sftp.connect(sftpConnectOpts(s));
       const rp = req.body.remotePath;
       const st = await sftp.stat(rp);
       if (st.isDirectory) {

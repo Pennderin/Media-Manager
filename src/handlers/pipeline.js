@@ -288,7 +288,7 @@ async function stepTransfer(job, store) {
 
   // First connection: collect file list
   const scout = new SftpClient();
-  await scout.connect({ host: s.sftpHost, port: s.sftpPort || 22, username: s.sftpUsername, password: s.sftpPassword });
+  await scout.connect({ host: s.sftpHost, port: s.sftpPort || 22, username: s.sftpUsername, password: s.sftpPassword, readyTimeout: 20000, algorithms: { compress: ['none'] } });
   const rp = job.options.remotePath;
   if (!rp) throw new Error('Remote path not set — torrent may not have been matched in qBittorrent');
   const st = await scout.stat(rp);
@@ -330,7 +330,7 @@ async function stepTransfer(job, store) {
 
   const worker = async (workerId) => {
     const conn = new SftpClient();
-    await conn.connect({ host: s.sftpHost, port: s.sftpPort || 22, username: s.sftpUsername, password: s.sftpPassword });
+    await conn.connect({ host: s.sftpHost, port: s.sftpPort || 22, username: s.sftpUsername, password: s.sftpPassword, readyTimeout: 20000, algorithms: { compress: ['none'] } });
 
     while (fileIdx < files.length && job.status !== 'cancelled') {
       const idx = fileIdx++;
@@ -340,7 +340,10 @@ async function stepTransfer(job, store) {
       activeSlots[workerId] = { file: f.name, transferred: 0, total: f.size, percent: 0, speed: 0 };
       throttleBroadcast();
 
-      await conn.fastGet(f.remote, f.local, { step: (x) => {
+      await conn.fastGet(f.remote, f.local, { 
+        chunkSize: 131072, // 128KB chunks (default is 32KB) — reduces round-trips
+        concurrency: 64,   // parallel read requests per file
+        step: (x) => {
         const n = Date.now(), dt = (n - pT) / 1000;
         const spd = dt > 0 ? (x - pB) / dt : 0;
         pB = x; pT = n;
