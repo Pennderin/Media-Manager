@@ -122,6 +122,9 @@ async function addAndDetect(store, url, searchName) {
           }
           if (!torrentResp.ok) throw new Error(`Prowlarr returned ${torrentResp.status} downloading torrent`);
         }
+
+        // If addBody already set (e.g. from magnet scrape during 410 retry), skip response parsing
+        if (!addBody) {
         const contentType = torrentResp.headers.get('content-type') || '';
         const finalUrl = torrentResp.url || url;
 
@@ -143,6 +146,7 @@ async function addAndDetect(store, url, searchName) {
           addBody = Buffer.concat([Buffer.from(header), torrentBuf, Buffer.from(`\r\n--${boundary}--\r\n`)]);
           addContentType = `multipart/form-data; boundary=${boundary}`;
         }
+        } // end if (!addBody)
       }
     }
 
