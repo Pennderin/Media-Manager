@@ -7,6 +7,7 @@ let jobId = 1;
 let _store = null; // reference for saving
 
 function fmtB(b) { if (!b || b < 0) return '0 B'; const u = ['B', 'KB', 'MB', 'GB']; const i = Math.floor(Math.log(Math.abs(b)) / Math.log(1024)); return (b / Math.pow(1024, i)).toFixed(1) + ' ' + u[i]; }
+function fmtSec(s) { if (!s || s <= 0) return ''; s = Math.round(s); const h = Math.floor(s / 3600); const m = Math.floor((s % 3600) / 60); const sec = s % 60; if (h > 0) return `${h}h ${m}m`; if (m > 0) return `${m}m ${sec}s`; return `${sec}s`; }
 
 // ========== Persistent Queue ==========
 function saveQueue() {
@@ -240,7 +241,19 @@ async function stepTorrent(job, store) {
     }
     return true;
   }
-  job.progress = `Torrent: ${Math.round(t.progress * 100)}% — ↓ ${fmtB(t.dlspeed)}/s`;
+  // Calculate total ETA = qBit download ETA + post-download work estimate
+  const sizeMB = (t.size || 0) / (1024 * 1024);
+  const isTV = (job.options?.renameType === 'tv') || (job.options?.moveType === 'tv');
+  const sftpSpeed = isTV ? 65 : 25;
+  const sftpEst = Math.round(sizeMB / sftpSpeed);
+  const fileCount = isTV ? Math.max(Math.round(sizeMB / 400), 1) : 1;
+  const renameEst = 10 + (fileCount * 2);
+  const moveEst = Math.round(sizeMB / 100);
+  const postDlEst = sftpEst + renameEst + moveEst;
+  const dlEta = (t.eta > 0 && t.eta < 8640000) ? t.eta : 0;
+  const totalEta = dlEta > 0 ? dlEta + postDlEst : 0;
+  const etaStr = totalEta > 0 ? ` — ETA ${fmtSec(totalEta)}` : '';
+  job.progress = `Torrent: ${Math.round(t.progress * 100)}% — ↓ ${fmtB(t.dlspeed)}/s${etaStr}`;
   return false;
 }
 
