@@ -25,7 +25,7 @@ async function plexSearch(title, type, year, cfg) {
       if (!targetTypes.includes(hub.type)) continue;
       for (const item of hub.Metadata || []) {
         if (normalize(item.title) !== searchNorm) continue;
-        if (searchYear && item.year && item.year !== searchYear) continue;
+        if (searchYear && item.year && Math.abs(item.year - searchYear) > 1) continue;
         return { found: true, title: item.title, year: item.year, type: hub.type };
       }
     }
@@ -43,7 +43,6 @@ function setupPlexRoutes(app, store, auth, getPipelineJobs) {
       const { title, type, year } = req.query;
       if (!title) return res.status(400).json({ error: 'Title required' });
       const cfg = store.get('plex') || {};
-      console.log('[plex] check called, cfg:', JSON.stringify(cfg), 'title:', title);
       const result = await plexSearch(title, type || 'movie', year, cfg);
       if (result === null) return res.json({ configured: false });
       res.json({ configured: true, ...result });
