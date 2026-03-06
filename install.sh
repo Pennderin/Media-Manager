@@ -20,27 +20,31 @@ fi
 
 # ── Plex library path ───────────────────────────────────────
 echo ""
+echo "  Where are your Plex libraries stored?"
+echo "  (This is the parent folder that contains your Movies, TV, etc)"
+echo ""
 read -p "  Plex root folder [/mnt/user/Plex]: " PLEX_ROOT
 PLEX_ROOT="${PLEX_ROOT:-/mnt/user/Plex}"
 
-# ── Library folder names ─────────────────────────────────────
+# ── Core folders ─────────────────────────────────────────────
 echo ""
-echo "  Library folder names (press Enter for defaults):"
-read -p "    Movies       [Movies]: " F_MOV;       F_MOV="${F_MOV:-Movies}"
-read -p "    TV Shows     [TV Shows]: " F_TV;       F_TV="${F_TV:-TV Shows}"
-read -p "    Kids Movies  [Kids Movies]: " F_KIDS;  F_KIDS="${F_KIDS:-Kids Movies}"
-read -p "    Asian Movies [Asian Movies]: " F_AM;   F_AM="${F_AM:-Asian Movies}"
-read -p "    Asian Shows  [Asian Shows]: " F_AS;    F_AS="${F_AS:-Asian Shows}"
-read -p "    Anime Movies [Anime Movies]: " F_ANM;  F_ANM="${F_ANM:-Anime Movies}"
-read -p "    Anime Shows  [Anime Shows]: " F_ANS;   F_ANS="${F_ANS:-Anime Shows}"
-read -p "    Staging      [Z Staging]: " F_STG;     F_STG="${F_STG:-Z Staging}"
+echo "  Folder names inside $PLEX_ROOT:"
+echo "  (Press Enter to accept defaults)"
+echo ""
+read -p "    Movies folder   [Movies]: " F_MOV;     F_MOV="${F_MOV:-Movies}"
+read -p "    TV Shows folder [TV Shows]: " F_TV;     F_TV="${F_TV:-TV Shows}"
+read -p "    Staging folder  [Z Staging]: " F_STG;   F_STG="${F_STG:-Z Staging}"
+echo ""
+echo "  Tip: You can add more libraries (Anime, Kids, etc) later"
+echo "  from the settings page at http://$NAS_IP:9876/admin"
 
 # ── Confirm ──────────────────────────────────────────────────
 echo ""
 echo "  ── Summary ──────────────────────────────"
 echo "  NAS IP:    $NAS_IP"
 echo "  Plex root: $PLEX_ROOT"
-echo "  Libraries: $F_MOV, $F_TV, $F_KIDS, $F_AM, $F_AS, $F_ANM, $F_ANS"
+echo "  Movies:    $PLEX_ROOT/$F_MOV"
+echo "  TV Shows:  $PLEX_ROOT/$F_TV"
 echo "  Staging:   $PLEX_ROOT/$F_STG"
 echo ""
 read -p "  Continue with install? [Y/n]: " go
@@ -58,11 +62,6 @@ mkdir -p /mnt/user/appdata/media-manager/config
 mkdir -p "$PLEX_ROOT/$F_STG"
 mkdir -p "$PLEX_ROOT/$F_MOV"
 mkdir -p "$PLEX_ROOT/$F_TV"
-mkdir -p "$PLEX_ROOT/$F_KIDS"
-mkdir -p "$PLEX_ROOT/$F_AM"
-mkdir -p "$PLEX_ROOT/$F_AS"
-mkdir -p "$PLEX_ROOT/$F_ANM"
-mkdir -p "$PLEX_ROOT/$F_ANS"
 
 # ── Pull images ──────────────────────────────────────────────
 echo "  [2/6] Pulling Docker images (this may take a minute)..."
@@ -90,11 +89,6 @@ docker run -d \
   -v "$PLEX_ROOT/$F_STG:/staging" \
   -v "$PLEX_ROOT/$F_MOV:/media/movies" \
   -v "$PLEX_ROOT/$F_TV:/media/tv" \
-  -v "$PLEX_ROOT/$F_KIDS:/media/kids-movies" \
-  -v "$PLEX_ROOT/$F_AM:/media/asian-movies" \
-  -v "$PLEX_ROOT/$F_AS:/media/asian-shows" \
-  -v "$PLEX_ROOT/$F_ANM:/media/anime-movies" \
-  -v "$PLEX_ROOT/$F_ANS:/media/anime-shows" \
   ghcr.io/pennderin/media-manager:latest
 
 # ── Start Media Companion ────────────────────────────────────
@@ -149,10 +143,17 @@ echo ""
 echo "  You'll need:"
 echo "    • Seedbox qBittorrent URL, username & password"
 echo "    • Seedbox SFTP host, port, username & password"
-echo "    • Prowlarr URL & API key"
+echo "    • Prowlarr URL & API key (install from Community Apps)"
 echo "    • TMDB API key (free at themoviedb.org)"
 echo ""
-echo "  After configuring, search for content at:"
+echo "  The settings page explains where to find each value."
+echo ""
+echo "  Want more libraries (Anime, Kids, Asian, etc)?"
+echo "  Add them from the Media Libraries section in settings."
+echo ""
+echo "  Search for content on your phone at:"
 echo ""
 echo "    http://$NAS_IP:3001"
+echo ""
+echo "  Add it to your home screen for the best experience!"
 echo ""
