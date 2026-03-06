@@ -25,17 +25,25 @@ services:
       # Staging — temporary workspace for downloads before renaming/moving
       # This should be a fast drive (SSD preferred) with enough space for
       # your largest download. It gets cleaned up after each pipeline job.
-      - /mnt/user/downloads/staging:/staging
+      - /mnt/user/Plex/Z Staging:/staging
 
-      # NAS media libraries — where your final media ends up
-      # Map these to your actual Plex/Jellyfin library paths
-      - /mnt/user/media/Movies:/media/movies
-      - /mnt/user/media/TV Shows:/media/tv
-      - /mnt/user/media/Kids Movies:/media/kids-movies
-      - /mnt/user/media/Asian Movies:/media/asian-movies
-      - /mnt/user/media/Asian Shows:/media/asian-shows
-      - /mnt/user/media/Anime Movies:/media/anime-movies
-      - /mnt/user/media/Anime Shows:/media/anime-shows
+      # ── Required Libraries ──────────────────────────────────────
+      # At minimum you need Movies and TV Shows.
+      # The container path (right side) must match what's in your settings.
+      - /mnt/user/Plex/Movies:/media/movies
+      - /mnt/user/Plex/TV Shows:/media/tv
+
+      # ── Additional Libraries (optional) ─────────────────────────
+      # Add more volume mounts for each library you create in settings.
+      # The container path should match the path you enter in the
+      # "Media Libraries" section at http://YOUR_NAS_IP:9876/admin
+      #
+      # Examples:
+      # - /mnt/user/Plex/Kids Movies:/media/kids-movies
+      # - /mnt/user/Plex/Anime Movies:/media/anime-movies
+      # - /mnt/user/Plex/Anime Shows:/media/anime-shows
+      # - /mnt/user/Plex/Asian Movies:/media/asian-movies
+      # - /mnt/user/Plex/Asian Shows:/media/asian-shows
     environment:
       - PORT=9876
       - CONFIG_DIR=/config
@@ -47,7 +55,7 @@ services:
     container_name: media-companion
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3001:3000"
     volumes:
       - ./config:/config
     environment:
