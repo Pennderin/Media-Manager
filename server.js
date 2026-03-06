@@ -34,6 +34,7 @@ const DEFAULT_CONFIG = {
   tmdb: { apiKey: '' },
   plex: { url: '', token: '' },
   server: { port: 9876, apiKey: '' },
+  sms: { smtpUser: '', smtpPass: '' },
   directToPC: { enabled: false, localPath: '' }
 };
 
@@ -162,6 +163,7 @@ app.get('/api/settings', requireAuth, (req, res) => {
   if (safe.seedbox.qbitPassword) safe.seedbox.qbitPassword = '••••••';
   if (safe.seedbox.sftpPassword) safe.seedbox.sftpPassword = '••••••';
   if (safe.server.apiKey) safe.server.apiKey = '••••••';
+  if (safe.sms && safe.sms.smtpPass) safe.sms.smtpPass = '••••••';
   res.json(safe);
 });
 
@@ -315,6 +317,41 @@ setupTmdbRoutes(app, store, requireAuth);
 setupFilesRoutes(app, store, requireAuth);
 setupPipelineRoutes(app, store, requireAuth, broadcast, { qbitRequest, addAndDetect, buildRenamePlan, executeRenames, tmdbSearchApi, cleanForSearch, parseMediaFilename });
 setupPlexRoutes(app, store, requireAuth, getPipelineJobs);
+
+// ========== SMS (Server-side SMTP) ==========
+const nodemailer = require('nodemailer');
+
+app.post('/api/sms/send', requireAuth, async (req, res) => {
+  try {
+    const { phone, carrier, message } = req.body;
+    if (!phone || !carrier || !message) return res.status(400).json({ error: 'phone, carrier, and message required' });
+    const smtpUser = config.sms.smtpUser;
+    const smtpPass = config.sms.smtpPass;
+    if (!smtpUser || !smtpPass) return res.status(500).json({ error: 'SMTP credentials not configured — set them in Media Manager settings' });
+    const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: smtpUser, pass: smtpPass } });
+    await transporter.sendMail({ from: `"Media Manager" <${smtpUser}>`, to: `${phone}@${carrier}`, subject: '', text: message });
+    log('info', 'sms', `Sent to ${phone}@${carrier}`);
+    res.json({ success: true });
+  } catch (e) {
+    log('error', 'sms', 'Send failed:', e.message);
+    res.json({ success: false, error: e.message });
+  }
+});
+
+app.post('/api/sms/test', requireAuth, async (req, res) => {
+  try {
+    const { phone, carrier } = req.body;
+    if (!phone || !carrier) return res.json({ success: false, error: 'Phone and carrier required' });
+    const smtpUser = config.sms.smtpUser;
+    const smtpPass = config.sms.smtpPass;
+    if (!smtpUser || !smtpPass) return res.json({ success: false, error: 'SMTP not configured in settings' });
+    const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: smtpUser, pass: smtpPass } });
+    await transporter.sendMail({ from: `"Media Manager" <${smtpUser}>`, to: `${phone}@${carrier}`, subject: '', text: '📺 Test from Media Manager — SMS notifications working!' });
+    res.json({ success: true });
+  } catch (e) {
+    res.json({ success: false, error: e.message });
+  }
+});
 
 // ========== MAGNET RECEIVE (Chrome Extension compatibility) ==========
 app.post('/magnet', (req, res) => {

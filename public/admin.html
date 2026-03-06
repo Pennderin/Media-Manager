@@ -169,6 +169,15 @@
   </div>
 </div>
 
+<div class="section">
+  <div class="section-title">SMS Notifications (Gmail SMTP)</div>
+  <div class="field-row">
+    <div class="field"><label>Gmail Address</label><input id="smsSmtpUser" type="email" placeholder="you@gmail.com"></div>
+    <div class="field"><label>App Password</label><input id="smsSmtpPass" type="password" placeholder="Gmail app password"></div>
+  </div>
+  <div class="field-hint">Used by Companion to send SMS notifications when downloads complete. Generate an app password at myaccount.google.com/apppasswords</div>
+</div>
+
 <div class="btn-row" style="margin-top:24px">
   <button class="btn btn-primary" onclick="saveAll()">💾 Save All Settings</button>
   <button class="btn btn-secondary" onclick="testAll()">🔍 Test All Connections</button>
@@ -199,6 +208,8 @@ const fieldMap = {
   'paths.nasAnimeShows': 'pathAnimeShows',
   'server.port': 'serverPort',
   'server.apiKey': 'serverApiKey',
+  'sms.smtpUser': 'smsSmtpUser',
+  'sms.smtpPass': 'smsSmtpPass',
 };
 
 function getNestedValue(obj, path) {
