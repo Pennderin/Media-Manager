@@ -148,6 +148,7 @@ const { setupTmdbRoutes } = require('./src/handlers/tmdb');
 const { setupFilesRoutes } = require('./src/handlers/files');
 const { setupPipelineRoutes, getJobs: getPipelineJobs } = require('./src/handlers/pipeline');
 const { setupPlexRoutes } = require('./src/handlers/plex');
+const { setupSmartGrabRoutes } = require('./src/handlers/smart-grab');
 
 // ========== ROUTES ==========
 
@@ -317,6 +318,7 @@ setupTmdbRoutes(app, store, requireAuth);
 setupFilesRoutes(app, store, requireAuth);
 setupPipelineRoutes(app, store, requireAuth, broadcast, { qbitRequest, addAndDetect, buildRenamePlan, executeRenames, tmdbSearchApi, cleanForSearch, parseMediaFilename });
 setupPlexRoutes(app, store, requireAuth, getPipelineJobs);
+setupSmartGrabRoutes(app, store, requireAuth);
 
 // ========== SMS (Server-side SMTP) ==========
 const nodemailer = require('nodemailer');
