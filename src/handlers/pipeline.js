@@ -235,7 +235,10 @@ async function stepTorrent(job, store) {
       console.log(`[pipeline] Resolved remotePath: ${job.options.remotePath}`);
     }
     if (t.category !== 'Long Seed') {
-      try { await fetch(`${base}/api/v2/torrents/pause`, { method: 'POST', headers: { 'Cookie': ck, 'Content-Type': 'application/x-www-form-urlencoded' }, body: `hashes=${job.options.torrentHash}` }); } catch (e) {}
+      try {
+        await fetch(base + '/api/v2/torrents/pause', { method: 'POST', headers: { 'Cookie': ck, 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'hashes=' + job.options.torrentHash });
+        console.log('[pipeline] Paused torrent: ' + job.name);
+      } catch (e) { console.log('[pipeline] Failed to pause: ' + e.message); }
     }
     return true;
   }
@@ -792,13 +795,21 @@ async function processJob(job, store) {
             const tr = await fetch(`${base}/api/v2/torrents/info?hashes=${job.options.torrentHash}`, { headers: { 'Cookie': ck } });
             const ts = await tr.json();
             if (ts.length && ts[0].category !== 'Long Seed') {
-              await fetch(`${base}/api/v2/torrents/delete`, { method: 'POST', headers: { 'Cookie': ck, 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: `hashes=${job.options.torrentHash}&deleteFiles=true` });
-              console.log(`[pipeline] Auto-deleted torrent: ${job.name}`);
+              for (let attempt = 0; attempt < 3; attempt++) {
+                try {
+                  await fetch(base + '/api/v2/torrents/delete', { method: 'POST', headers: { 'Cookie': ck, 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'hashes=' + job.options.torrentHash + '&deleteFiles=true' });
+                  console.log('[pipeline] Auto-deleted torrent: ' + job.name);
+                  break;
+                } catch (retryErr) {
+                  if (attempt < 2) { console.log('[pipeline] Delete retry ' + (attempt + 1) + ': ' + retryErr.message); await new Promise(r => setTimeout(r, 2000)); }
+                  else console.log('[pipeline] Delete failed after 3 attempts: ' + retryErr.message);
+                }
+              }
             } else {
-              console.log(`[pipeline] Skipped delete — Long Seed: ${job.name}`);
+              console.log('[pipeline] Skipped delete — Long Seed: ' + job.name);
             }
-          } catch (e) { console.log(`[pipeline] Failed to auto-delete: ${e.message}`); }
+          } catch (e) { console.log('[pipeline] Failed to auto-delete: ' + e.message); }
         }
       } else if (step === 'pc_cleanup') {
         // Auto-delete torrent from qBittorrent after successful PC transfer
@@ -818,12 +829,15 @@ async function processJob(job, store) {
       }
     }
     job.status = 'done'; job.step = 'complete'; job.progress = 'All steps complete';
+    // Auto-clear from queue after 60 seconds
+    setTimeout(() => { const idx = jobs.indexOf(job); if (idx !== -1) { jobs.splice(idx, 1); broadcast(); } }, 60000);
     // Clean up job-specific staging subfolder
     if (job.options.stagingPath && fs.existsSync(job.options.stagingPath)) {
       try { fs.rmSync(job.options.stagingPath, { recursive: true, force: true }); } catch (e) {}
     }
     broadcast();
-  } catch (e) { job.status = 'failed'; job.error = e.message; broadcast(); }
+  } catch (e) { job.status = 'failed'; job.error = e.message;
+    setTimeout(() => { const idx = jobs.indexOf(job); if (idx !== -1) { jobs.splice(idx, 1); broadcast(); } }, 300000); broadcast(); }
 }
 
 // ========== REST API Routes ==========
