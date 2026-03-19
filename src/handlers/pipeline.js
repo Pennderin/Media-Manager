@@ -997,7 +997,7 @@ function setupPipelineRoutes(app, store, auth, broadcastFn, deps) {
   // Auto-grab endpoint (Companion compatibility)
   app.post('/auto-grab', auth, async (req, res) => {
     try {
-      const { url, title, type, infoUrl } = req.body;
+      const { url, title, type, infoUrl, renameQuery } = req.body;
       if (!url) return res.status(400).json({ error: 'No URL provided' });
       const contentType = type || 'movie';
       const renameType = contentType === 'tv' ? 'tv' : 'movie';
@@ -1017,7 +1017,7 @@ function setupPipelineRoutes(app, store, auth, broadcastFn, deps) {
       const job = {
         id: jobId++, name: opts.name, status: 'queued', step: '', progress: '', error: null,
         transferDetail: null, parallelTransfers: null, renamePreview: null, torrentFiles: null,
-        options: { ...opts, remotePath, torrentHash: null, renameQuery: '', renameDb: '', episodeOverrides: {} }
+        options: { ...opts, remotePath, torrentHash: null, renameQuery: renameQuery || '', renameDb: '', episodeOverrides: {} }
       };
       jobs.push(job); broadcast();
       processJob(job, store);

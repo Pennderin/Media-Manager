@@ -327,7 +327,7 @@ function setupSmartGrabRoutes(app, store, auth) {
       const grabRes = await fetch(`http://127.0.0.1:${port}/auto-grab`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: grabUrl, title: best.title, type: contentType, infoUrl: best.infoUrl }),
+        body: JSON.stringify({ url: grabUrl, title: best.title, type: contentType, infoUrl: best.infoUrl, renameQuery: year ? title + ' ' + year : title }),
         signal: AbortSignal.timeout(10000),
       });
       if (!grabRes.ok) {
