@@ -196,7 +196,27 @@ function setupQbitRoutes(app, store, auth) {
 
   app.post('/api/qbit/add', auth, async (req, res) => {
     try {
-      const { url } = req.body;
+      const { url, torrentData, filename } = req.body;
+
+      // Handle raw .torrent file upload (base64 encoded)
+      if (torrentData) {
+        const torrentBuf = Buffer.from(torrentData, 'base64');
+        const boundary = '----MediaManager' + Date.now();
+        const fname = filename || 'upload.torrent';
+        const header = '--' + boundary + '\r\nContent-Disposition: form-data; name="torrents"; filename="' + fname + '"\r\nContent-Type: application/x-bittorrent\r\n\r\n';
+        const body = Buffer.concat([Buffer.from(header), torrentBuf, Buffer.from('\r\n--' + boundary + '--\r\n')]);
+        const s = store.get('seedbox'), base = s.qbitUrl.replace(/\/$/, '');
+        if (!sessionCookie) {
+          const lr = await fetch(base + '/api/v2/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'username=' + encodeURIComponent(s.qbitUsername) + '&password=' + encodeURIComponent(s.qbitPassword) });
+          if (lr.ok) { const c = lr.headers.get('set-cookie'); if (c) sessionCookie = c.split(';')[0]; }
+        }
+        const r = await fetch(base + '/api/v2/torrents/add', {
+          method: 'POST', headers: { 'Cookie': sessionCookie || '', 'Content-Type': 'multipart/form-data; boundary=' + boundary }, body
+        });
+        return res.json({ success: r.ok });
+      }
+
       if (url.startsWith('magnet:')) {
         const r = await qbitRequest(store, '/api/v2/torrents/add', 'POST', `urls=${encodeURIComponent(url)}`);
         return res.json({ success: r.ok });
