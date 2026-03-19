@@ -550,4 +550,5 @@ class AppShell extends HTMLElement {
   }
 }
 
+window.AppShell = AppShell;
 customElements.define('app-shell', AppShell);
