@@ -11,6 +11,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const webpush = require('web-push');
 
 // Per-connection TLS bypass for self-signed certs (seedbox webUIs)
 const insecureAgent = new https.Agent({ rejectUnauthorized: false });
@@ -52,7 +53,7 @@ const DEFAULT_CONFIG = {
   prowlarr: { url: '', apiKey: '' },
   tmdb: { apiKey: '' },
   plex: { url: '', token: '' },
-  server: { port: 9876, apiKey: '' },
+  server: { port: 9876, apiKey: '', pin: '' },
   sms: { smtpUser: '', smtpPass: '' },
   directToPC: { enabled: false, localPath: '' }
 };
@@ -113,12 +114,38 @@ const store = {
   get store() { return config; }
 };
 
+// ========== COMPANION: PIN AUTH & VAPID ==========
+const { createAuthMiddleware: createPinAuth } = require('./src/companion/middleware/auth');
+
+// Load or generate VAPID keys for web push
+let vapidKeys;
+const vapidPath = path.join(CONFIG_DIR, 'vapid.json');
+try {
+  vapidKeys = JSON.parse(fs.readFileSync(vapidPath, 'utf8'));
+} catch {
+  vapidKeys = webpush.generateVAPIDKeys();
+  try {
+    if (!fs.existsSync(CONFIG_DIR)) fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    fs.writeFileSync(vapidPath, JSON.stringify(vapidKeys, null, 2));
+  } catch (e) { log('warn', 'companion', 'Could not save VAPID keys:', e.message); }
+}
+webpush.setVapidDetails('mailto:media-companion@local', vapidKeys.publicKey, vapidKeys.privateKey);
+
 // ========== EXPRESS APP ==========
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use('/admin', express.static(path.join(__dirname, 'public')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
+
+// Companion PWA static files
+app.use('/companion', express.static(path.join(__dirname, 'public', 'companion'), {
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    }
+  },
+}));
 
 // TLS bypass is handled per-connection via insecureAgent (see top of file)
 
@@ -172,7 +199,7 @@ const { setupSmartGrabRoutes } = require('./src/handlers/smart-grab');
 
 // Health check
 app.get('/ping', (req, res) => {
-  res.json({ status: 'ok', app: 'Media Manager Server', version: '2.0.0', uptime: process.uptime() });
+  res.json({ status: 'ok', app: 'Media Manager Server', version: '2.1.0', uptime: process.uptime() });
 });
 
 // Settings
@@ -210,7 +237,7 @@ app.put('/api/settings/bulk', requireAuth, (req, res) => {
 app.get('/api/diagnostics', requireAuth, (req, res) => {
   const diag = {
     server: {
-      version: '2.0.0',
+      version: '2.1.0',
       uptime: Math.round(process.uptime()),
       uptimeStr: formatUptime(process.uptime()),
       nodeVersion: process.version,
@@ -382,18 +409,48 @@ app.post('/magnet', (req, res) => {
   res.json({ success: true, message: 'Magnet received' });
 });
 
+// ========== COMPANION ROUTES ==========
+const companionAuth = createPinAuth(() => store.get('server.pin') || process.env.PIN || '');
+const PORT = parseInt(process.env.PORT) || config.server.port || 9876;
+const companionConfig = {
+  ...config,
+  configDir: CONFIG_DIR,
+  vapidKeys,
+  internalBaseUrl: `http://127.0.0.1:${PORT}`,
+};
+
+const searchRoutes = require('./src/companion/routes/search');
+const mediaRoutes = require('./src/companion/routes/media');
+const topRoutes = require('./src/companion/routes/top');
+const configRoutes = require('./src/companion/routes/config');
+const plexCompanionRoutes = require('./src/companion/routes/plex');
+
+app.use('/companion/api', searchRoutes(companionConfig, companionAuth));
+app.use('/companion/api', mediaRoutes(companionConfig, companionAuth));
+app.use('/companion/api', topRoutes(companionConfig, companionAuth));
+app.use('/companion/api', configRoutes(companionConfig, companionAuth));
+app.use('/companion/api', plexCompanionRoutes(companionConfig, companionAuth));
+
+// Companion health
+app.get('/companion/api/health', (req, res) => res.json({ status: 'ok', mode: 'integrated' }));
+
+// PWA fallback — any /companion/* route serves index.html
+app.get('/companion/*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'companion', 'index.html'));
+});
+
 // ========== HELPERS ==========
 const { formatBytes, formatUptime } = require('./src/utils');
 
 // ========== START ==========
-const PORT = parseInt(process.env.PORT) || config.server.port || 9876;
-
 server.listen(PORT, '0.0.0.0', () => {
   log('info', 'server', '═══════════════════════════════════════════');
-  log('info', 'server', '  Media Manager Server v2.0.0');
-  log('info', 'server', `  API:       http://0.0.0.0:${PORT}`);
+  log('info', 'server', '  Media Manager Server v2.1.0');
+  log('info', 'server', `  API:       http://0.0.0.0:${PORT}/api`);
+  log('info', 'server', `  Admin:     http://0.0.0.0:${PORT}/admin`);
+  log('info', 'server', `  Companion: http://0.0.0.0:${PORT}/companion`);
   log('info', 'server', `  WebSocket: ws://0.0.0.0:${PORT}/ws`);
-  log('info', 'server', `  Auth:      ${config.server.apiKey ? 'Enabled' : 'Open (no API key set)'}`);
+  log('info', 'server', `  Auth:      ${config.server.apiKey ? 'API Key' : 'Open'} | PIN: ${config.server.pin ? 'Set' : 'None'}`);
   log('info', 'server', `  Config:    ${CONFIG_PATH}`);
   log('info', 'server', `  Staging:   ${config.paths.staging}`);
   log('info', 'server', '═══════════════════════════════════════════');

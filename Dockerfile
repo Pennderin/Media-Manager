@@ -1,7 +1,7 @@
 FROM node:20-alpine
 
 LABEL maintainer="Pennderin"
-LABEL description="Media Manager Server — headless media pipeline"
+LABEL description="Media Manager Server — headless media pipeline with integrated Companion PWA"
 LABEL org.opencontainers.image.source="https://github.com/Pennderin/Media-Manager"
 
 WORKDIR /app

@@ -8,7 +8,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/Pennderin/Media-Manager</Support>
   <Project>https://github.com/Pennderin/Media-Manager</Project>
-  <Overview>Headless media pipeline server. Automates the full flow: search Prowlarr, download via qBittorrent, SFTP from seedbox, rename with TMDB metadata, and organize into Plex libraries. Settings UI at http://[IP]:9876/admin</Overview>
+  <Overview>Headless media pipeline server with integrated Companion PWA. Automates the full flow: search Prowlarr, download via qBittorrent, SFTP from seedbox, rename with TMDB metadata, and organize into Plex libraries. Settings UI at http://[IP]:9876/admin — Companion PWA at http://[IP]:9876/companion</Overview>
   <Category>MediaServer:Other</Category>
   <WebUI>http://[IP]:[PORT:9876]/admin</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/Pennderin/Media-Manager/main/unraid-template.xml</TemplateURL>
@@ -35,4 +35,5 @@
   <Config Name="Log Level" Target="LOG_LEVEL" Default="info" Mode="" Description="Log level" Type="Variable" Display="advanced" Required="false" Mask="false">info</Config>
   <Config Name="SMTP User" Target="SMTP_USER" Default="" Mode="" Description="Gmail address for SMS-via-email notifications (optional — overrides config.json)" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
   <Config Name="SMTP Password" Target="SMTP_PASS" Default="" Mode="" Description="Gmail app password for SMS-via-email notifications (optional — overrides config.json)" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
+  <Config Name="Companion PIN" Target="PIN" Default="" Mode="" Description="PIN code for Companion PWA authentication (optional — leave empty for open access). Companion is at http://[IP]:9876/companion" Type="Variable" Display="always" Required="false" Mask="true"></Config>
 </Container>

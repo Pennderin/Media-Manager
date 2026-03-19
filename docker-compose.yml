@@ -1,13 +1,17 @@
 # ═══════════════════════════════════════════════════════════════════
 # Media Manager — Docker Compose
-# Run both the server and companion on your NAS
+# Single container: server + companion PWA
 # ═══════════════════════════════════════════════════════════════════
 #
 # QUICK START:
-#   1. Copy config.template.json → config/config.json
+#   1. Copy config.template.json -> config/config.json
 #   2. Fill in your seedbox, Prowlarr, and TMDB settings
 #   3. Adjust the volume paths below to match YOUR NAS layout
 #   4. docker-compose up -d
+#
+# Access:
+#   Admin:     http://YOUR_NAS_IP:9876/admin
+#   Companion: http://YOUR_NAS_IP:9876/companion
 #
 # ═══════════════════════════════════════════════════════════════════
 
@@ -49,23 +53,9 @@ services:
       - CONFIG_DIR=/config
       - LOG_LEVEL=info
       - TZ=America/New_York
+      # Companion PIN auth (optional — leave empty for open access)
+      # - PIN=1234
       # SMTP credentials for SMS-via-email notifications (optional)
       # These override the values in config.json if set
       # - SMTP_USER=your-email@gmail.com
       # - SMTP_PASS=your-app-password
-
-  media-companion:
-    build: ./media-companion-docker
-    container_name: media-companion
-    restart: unless-stopped
-    ports:
-      - "3001:3000"
-    volumes:
-      - ./config:/config
-    environment:
-      - PORT=3000
-      - CONFIG_DIR=/config
-      - MANAGER_URL=http://media-manager:9876
-      - TZ=America/New_York
-    depends_on:
-      - media-manager
