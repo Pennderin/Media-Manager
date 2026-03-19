@@ -1,0 +1,15 @@
+{
+  "name": "media-manager-shared",
+  "version": "1.0.0",
+  "description": "Shared utilities for Media Manager ecosystem",
+  "main": "index.js",
+  "scripts": {
+    "test": "npx vitest run"
+  },
+  "dependencies": {
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "vitest": "^1.0.0"
+  }
+}
