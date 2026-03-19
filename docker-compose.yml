@@ -49,6 +49,10 @@ services:
       - CONFIG_DIR=/config
       - LOG_LEVEL=info
       - TZ=America/New_York
+      # SMTP credentials for SMS-via-email notifications (optional)
+      # These override the values in config.json if set
+      # - SMTP_USER=your-email@gmail.com
+      # - SMTP_PASS=your-app-password
 
   media-companion:
     build: ./media-companion-docker

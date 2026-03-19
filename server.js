@@ -5,11 +5,30 @@
 
 const express = require('express');
 const http = require('http');
+const https = require('https');
 const { WebSocketServer } = require('ws');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+
+// Per-connection TLS bypass for self-signed certs (seedbox webUIs)
+const insecureAgent = new https.Agent({ rejectUnauthorized: false });
+
+// ========== CREDENTIAL REDACTION ==========
+function redactSensitive(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const redacted = Array.isArray(obj) ? [...obj] : { ...obj };
+  const sensitiveKeys = ['password', 'apikey', 'api_key', 'token', 'pass', 'secret', 'smtp'];
+  for (const key of Object.keys(redacted)) {
+    if (sensitiveKeys.some(s => key.toLowerCase().includes(s))) {
+      redacted[key] = '***REDACTED***';
+    } else if (typeof redacted[key] === 'object' && redacted[key] !== null) {
+      redacted[key] = redactSensitive(redacted[key]);
+    }
+  }
+  return redacted;
+}
 
 // ========== LOGGING ==========
 const LOG_LEVELS = { error: 0, warn: 1, info: 2, debug: 3 };
@@ -101,14 +120,13 @@ app.use(express.json({ limit: '10mb' }));
 app.use('/admin', express.static(path.join(__dirname, 'public')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
-// Allow self-signed certs (common on seedbox webUIs)
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+// TLS bypass is handled per-connection via insecureAgent (see top of file)
 
 // ========== AUTH MIDDLEWARE ==========
 function requireAuth(req, res, next) {
   const apiKey = config.server.apiKey;
   if (!apiKey) return next(); // no key = open access
-  const provided = req.headers['x-api-key'] || req.query.apiKey;
+  const provided = req.headers['x-api-key'];
   if (provided === apiKey) return next();
   res.status(401).json({ error: 'Invalid or missing API key' });
 }
@@ -169,7 +187,7 @@ app.get('/api/settings', requireAuth, (req, res) => {
 });
 
 app.get('/api/settings/raw', requireAuth, (req, res) => {
-  res.json(config);
+  res.json(redactSensitive(config));
 });
 
 app.put('/api/settings', requireAuth, (req, res) => {
@@ -327,8 +345,8 @@ app.post('/api/sms/send', requireAuth, async (req, res) => {
   try {
     const { phone, carrier, message } = req.body;
     if (!phone || !carrier || !message) return res.status(400).json({ error: 'phone, carrier, and message required' });
-    const smtpUser = config.sms.smtpUser;
-    const smtpPass = config.sms.smtpPass;
+    const smtpUser = process.env.SMTP_USER || config.sms.smtpUser;
+    const smtpPass = process.env.SMTP_PASS || config.sms.smtpPass;
     if (!smtpUser || !smtpPass) return res.status(500).json({ error: 'SMTP credentials not configured — set them in Media Manager settings' });
     const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: smtpUser, pass: smtpPass } });
     await transporter.sendMail({ from: `"Media Manager" <${smtpUser}>`, to: `${phone}@${carrier}`, subject: '', text: message });
@@ -344,8 +362,8 @@ app.post('/api/sms/test', requireAuth, async (req, res) => {
   try {
     const { phone, carrier } = req.body;
     if (!phone || !carrier) return res.json({ success: false, error: 'Phone and carrier required' });
-    const smtpUser = config.sms.smtpUser;
-    const smtpPass = config.sms.smtpPass;
+    const smtpUser = process.env.SMTP_USER || config.sms.smtpUser;
+    const smtpPass = process.env.SMTP_PASS || config.sms.smtpPass;
     if (!smtpUser || !smtpPass) return res.json({ success: false, error: 'SMTP not configured in settings' });
     const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: smtpUser, pass: smtpPass } });
     await transporter.sendMail({ from: `"Media Manager" <${smtpUser}>`, to: `${phone}@${carrier}`, subject: '', text: '📺 Test from Media Manager — SMS notifications working!' });
@@ -381,4 +399,4 @@ server.listen(PORT, '0.0.0.0', () => {
   log('info', 'server', '═══════════════════════════════════════════');
 });
 
-module.exports = { app, server, store, broadcast, log };
+module.exports = { app, server, store, broadcast, log, insecureAgent };

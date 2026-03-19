@@ -3,8 +3,9 @@
 // Poster lookup, rich search, IMDB lookup, TV show/season details
 // ═══════════════════════════════════════════════════════════════════
 
-const posterCache = new Map();
-const searchCache = new Map();
+const { LRUCache } = require('media-manager-shared/src/utils');
+const posterCache = new LRUCache(500, 3600000); // 500 entries, 1hr TTL
+const searchCache = new LRUCache(500, 3600000);
 
 function cleanTitle(torrentTitle) {
   let t = torrentTitle;

@@ -5,6 +5,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const { cleanForSearch: sharedCleanForSearch } = require('media-manager-shared/src/utils');
 
 const VIDEO_EXTS = new Set(['.mkv','.mp4','.avi','.mov','.wmv','.flv','.m4v','.webm','.ts','.m2ts']);
 
@@ -190,17 +191,11 @@ function scanVideoFiles(dirPath) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// Clean name for TMDB search
+// Clean name for TMDB search — delegated to shared library
 // ══════════════════════════════════════════════════════════════════
 
 function cleanForSearch(name) {
-  return name
-    .replace(/[\.\-\_]/g, ' ')
-    .replace(/\b(720p|1080p|2160p|4k|uhd|bluray|bdrip|brrip|webrip|web|dl|hdtv|dvdrip|x264|x265|h264|h265|hevc|avc|aac|ac3|atmos|dts|remux|proper|repack|internal|dubbed|subbed|multi|10bit|hdr|sdr|ddp|dv|dovi|5\.1)\b/gi, '')
-    .replace(/\bS\d{1,2}[\s._-]*E\d{1,3}\b/gi, '')
-    .replace(/\b(Season|S)\s*\d+/gi, '')
-    .replace(/\bE\d{1,3}\b/gi, '')
-    .replace(/\s{2,}/g, ' ').trim();
+  return sharedCleanForSearch(name);
 }
 
 // ══════════════════════════════════════════════════════════════════

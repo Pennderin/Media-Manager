@@ -5,18 +5,15 @@
 
 const fs = require('fs');
 const path = require('path');
+const { VIDEO_EXTENSIONS, SUBTITLE_EXTENSIONS } = require('media-manager-shared/src/constants');
+const { hasForeignFilenameMarker, hasEnglishFilenameMarker } = require('media-manager-shared/src/language');
 
-const VID = ['.mkv', '.mp4', '.avi', '.m4v', '.wmv', '.mov', '.ts', '.flv', '.webm'];
-const SUB = ['.srt', '.sub', '.idx', '.ass', '.ssa', '.vtt'];
-
-function isVid(f) { return VID.includes(path.extname(f).toLowerCase()); }
+function isVid(f) { return VIDEO_EXTENSIONS.includes(path.extname(f).toLowerCase()); }
 function isEngSub(f) {
   const e = path.extname(f).toLowerCase();
-  if (!SUB.includes(e)) return false;
-  const l = f.toLowerCase();
-  if (l.includes('english') || l.includes('.eng.') || l.includes('.en.')) return true;
-  const foreign = ['.chi.', '.chs.', '.cht.', '.chinese', '.spa.', '.spanish', '.fre.', '.french', '.fra.', '.ger.', '.german', '.ita.', '.italian', '.jpn.', '.japanese', '.kor.', '.korean', '.ara.', '.arabic', '.rus.', '.russian', '.hin.', '.hindi', '.tha.', '.thai', '.vie.', '.vietnamese', '.pol.', '.polish', '.tur.', '.turkish', '.dut.', '.dutch', '.swe.', '.swedish', '.por.', '.portuguese', '.nor.', '.norwegian', '.dan.', '.danish', '.fin.', '.finnish', '.heb.', '.hebrew', '.gre.', '.greek', '.rom.', '.romanian', '.cze.', '.czech', '.hun.', '.hungarian'];
-  for (const t of foreign) if (l.includes(t)) return false;
+  if (!SUBTITLE_EXTENSIONS.includes(e)) return false;
+  if (hasEnglishFilenameMarker(f)) return true;
+  if (hasForeignFilenameMarker(f)) return false;
   return true;
 }
 function keep(f) { if (/sample/i.test(f)) return false; return isVid(f) || isEngSub(f); }

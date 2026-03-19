@@ -33,4 +33,6 @@
   <Config Name="CONFIG_DIR" Target="CONFIG_DIR" Default="/config" Mode="" Description="Config dir inside container" Type="Variable" Display="advanced" Required="false" Mask="false">/config</Config>
   <Config Name="Timezone" Target="TZ" Default="America/New_York" Mode="" Description="Timezone" Type="Variable" Display="advanced" Required="false" Mask="false">America/New_York</Config>
   <Config Name="Log Level" Target="LOG_LEVEL" Default="info" Mode="" Description="Log level" Type="Variable" Display="advanced" Required="false" Mask="false">info</Config>
+  <Config Name="SMTP User" Target="SMTP_USER" Default="" Mode="" Description="Gmail address for SMS-via-email notifications (optional — overrides config.json)" Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+  <Config Name="SMTP Password" Target="SMTP_PASS" Default="" Mode="" Description="Gmail app password for SMS-via-email notifications (optional — overrides config.json)" Type="Variable" Display="advanced" Required="false" Mask="true"></Config>
 </Container>

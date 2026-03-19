@@ -2,7 +2,8 @@
 // Plex Duplicate Check Handler
 // ═══════════════════════════════════════════════════════════════════
 
-const normalize = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const { normalizeName } = require('media-manager-shared/src/utils');
+const normalize = normalizeName;
 
 async function plexSearch(title, type, year, cfg) {
   const plexUrl = cfg?.url;

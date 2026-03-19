@@ -2,17 +2,25 @@
 // qBittorrent Handler — REST API version
 // ═══════════════════════════════════════════════════════════════════
 
+const https = require('https');
+const insecureAgent = new https.Agent({ rejectUnauthorized: false });
+
+// Helper: attach insecureAgent when URL is HTTPS
+function agentFor(url) {
+  return url.startsWith('https') ? { agent: insecureAgent } : {};
+}
+
 let sessionCookie = null;
 
 async function qbitRequest(store, endpoint, method = 'GET', body = null) {
   const s = store.get('seedbox'), base = s.qbitUrl.replace(/\/$/, '');
   if (!sessionCookie) {
     const r = await fetch(`${base}/api/v2/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `username=${encodeURIComponent(s.qbitUsername)}&password=${encodeURIComponent(s.qbitPassword)}` });
+      body: `username=${encodeURIComponent(s.qbitUsername)}&password=${encodeURIComponent(s.qbitPassword)}`, ...agentFor(base) });
     if (r.ok) { const c = r.headers.get('set-cookie'); if (c) sessionCookie = c.split(';')[0]; }
     else throw new Error('qBittorrent login failed');
   }
-  const opts = { method, headers: { 'Cookie': sessionCookie || '' } };
+  const opts = { method, headers: { 'Cookie': sessionCookie || '' }, ...agentFor(base) };
   if (body) { opts.body = body; opts.headers['Content-Type'] = 'application/x-www-form-urlencoded'; }
   const r = await fetch(`${base}${endpoint}`, opts);
   if (r.status === 403) { sessionCookie = null; return qbitRequest(store, endpoint, method, body); }
@@ -43,13 +51,13 @@ async function addAndDetect(store, url, searchName) {
         const s2 = store.get('seedbox'), base2 = s2.qbitUrl.replace(/\/$/, '');
         if (!sessionCookie) {
           const lr2 = await fetch(`${base2}/api/v2/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `username=${encodeURIComponent(s2.qbitUsername)}&password=${encodeURIComponent(s2.qbitPassword)}` });
+            body: `username=${encodeURIComponent(s2.qbitUsername)}&password=${encodeURIComponent(s2.qbitPassword)}`, ...agentFor(base2) });
           if (lr2.ok) { const c = lr2.headers.get('set-cookie'); if (c) sessionCookie = c.split(';')[0]; }
         }
         const directR = await fetch(`${base2}/api/v2/torrents/add`, {
           method: 'POST',
           headers: { 'Cookie': sessionCookie || '', 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `urls=${encodeURIComponent(url)}`
+          body: `urls=${encodeURIComponent(url)}`, ...agentFor(base2)
         });
         if (!directR.ok) throw new Error('Could not download torrent file and qBit also rejected URL');
         addBody = null;
@@ -137,13 +145,13 @@ async function addAndDetect(store, url, searchName) {
       const s = store.get('seedbox'), base = s.qbitUrl.replace(/\/$/, '');
       if (!sessionCookie) {
         const lr = await fetch(`${base}/api/v2/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `username=${encodeURIComponent(s.qbitUsername)}&password=${encodeURIComponent(s.qbitPassword)}` });
+          body: `username=${encodeURIComponent(s.qbitUsername)}&password=${encodeURIComponent(s.qbitPassword)}`, ...agentFor(base) });
         if (lr.ok) { const c = lr.headers.get('set-cookie'); if (c) sessionCookie = c.split(';')[0]; }
       }
       const addR = await fetch(`${base}/api/v2/torrents/add`, {
         method: 'POST',
         headers: { 'Cookie': sessionCookie || '', 'Content-Type': addContentType },
-        body: addBody
+        body: addBody, ...agentFor(base)
       });
       if (!addR.ok) return { success: false, error: `qBittorrent rejected torrent: ${addR.status}` };
     }
@@ -208,11 +216,11 @@ function setupQbitRoutes(app, store, auth) {
         const s = store.get('seedbox'), base = s.qbitUrl.replace(/\/$/, '');
         if (!sessionCookie) {
           const lr = await fetch(base + '/api/v2/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'username=' + encodeURIComponent(s.qbitUsername) + '&password=' + encodeURIComponent(s.qbitPassword) });
+            body: 'username=' + encodeURIComponent(s.qbitUsername) + '&password=' + encodeURIComponent(s.qbitPassword), ...agentFor(base) });
           if (lr.ok) { const c = lr.headers.get('set-cookie'); if (c) sessionCookie = c.split(';')[0]; }
         }
         const r = await fetch(base + '/api/v2/torrents/add', {
-          method: 'POST', headers: { 'Cookie': sessionCookie || '', 'Content-Type': 'multipart/form-data; boundary=' + boundary }, body
+          method: 'POST', headers: { 'Cookie': sessionCookie || '', 'Content-Type': 'multipart/form-data; boundary=' + boundary }, body, ...agentFor(base)
         });
         return res.json({ success: r.ok });
       }
@@ -230,11 +238,11 @@ function setupQbitRoutes(app, store, auth) {
       const s = store.get('seedbox'), base = s.qbitUrl.replace(/\/$/, '');
       if (!sessionCookie) {
         const lr = await fetch(`${base}/api/v2/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `username=${encodeURIComponent(s.qbitUsername)}&password=${encodeURIComponent(s.qbitPassword)}` });
+          body: `username=${encodeURIComponent(s.qbitUsername)}&password=${encodeURIComponent(s.qbitPassword)}`, ...agentFor(base) });
         if (lr.ok) { const c = lr.headers.get('set-cookie'); if (c) sessionCookie = c.split(';')[0]; }
       }
       const r = await fetch(`${base}/api/v2/torrents/add`, {
-        method: 'POST', headers: { 'Cookie': sessionCookie || '', 'Content-Type': `multipart/form-data; boundary=${boundary}` }, body
+        method: 'POST', headers: { 'Cookie': sessionCookie || '', 'Content-Type': `multipart/form-data; boundary=${boundary}` }, body, ...agentFor(base)
       });
       res.json({ success: r.ok });
     } catch (e) { res.json({ success: false, error: e.message }); }
