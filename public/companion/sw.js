@@ -1,4 +1,4 @@
-const CACHE = 'media-companion-v14';
+const CACHE = 'media-companion-v15';
 const ASSETS = ['/companion/manifest.json'];
 
 self.addEventListener('install', e => {

@@ -614,11 +614,11 @@ class SearchView extends HTMLElement {
 
       /* ── Idle state (gif) ────────────────────────────────── */
       .home-idle {
-        display: flex; align-items: center; justify-content: center;
-        height: 100%; padding: 20px;
+        display: flex; align-items: flex-end; justify-content: center;
+        height: 100%; padding: 0 20px 15%;
       }
       .idle-gif {
-        max-width: 280px; width: 80%;
+        max-width: 340px; width: 95%;
         opacity: 0.5;
         mix-blend-mode: lighten;
         pointer-events: none;
