@@ -100,7 +100,7 @@ class SearchView extends HTMLElement {
     const container = this.shadowRoot.querySelector('#searchResults');
     container.innerHTML = `
       <div class="home-idle">
-        <img class="idle-gif" src="https://images.steamusercontent.com/ugc/854976916434675605/0A7FF9FDC45305AB9F1B4F51DCAC315274B28F96/?imw=5000&imh=5000&ima=fit&impolicy=Letterbox&imcolor=%23000000&letterbox=false" alt="" />
+        <img class="idle-gif" src="/companion/skull.gif" alt="" />
       </div>
     `;
   }

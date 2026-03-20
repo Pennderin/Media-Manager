@@ -491,7 +491,7 @@ class AppShell extends HTMLElement {
       /* ── Header ──────────────────────────────────────────── */
       .app-header {
         display: flex; align-items: center; gap: 12px;
-        padding: 14px 20px 10px; flex-shrink: 0;
+        padding: calc(14px + env(safe-area-inset-top, 0px)) calc(20px + env(safe-area-inset-right, 0px)) 10px calc(20px + env(safe-area-inset-left, 0px)); flex-shrink: 0;
       }
       .header-logo {
         width: 36px; height: 36px; border-radius: 10px;
