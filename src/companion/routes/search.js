@@ -199,5 +199,40 @@ module.exports = function createSearchRoutes(config, requireAuth) {
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
+  // TMDB Trending — for the home screen
+  router.get('/trending', requireAuth, async (req, res) => {
+    try {
+      const apiKey = config.tmdb.apiKey;
+      if (!apiKey) return res.json({ success: true, movies: [], tv: [] });
+
+      const cacheKey = 'trending:home';
+      const cached = tmdbCache.get(cacheKey);
+      if (cached) return res.json(cached);
+
+      const [moviesRes, tvRes] = await Promise.all([
+        fetch(`https://api.themoviedb.org/3/trending/movie/week?api_key=${apiKey}`),
+        fetch(`https://api.themoviedb.org/3/trending/tv/week?api_key=${apiKey}`),
+      ]);
+
+      const mapItem = (r, type) => ({
+        id: r.id,
+        title: r.title || r.name,
+        year: (r.release_date || r.first_air_date || '').slice(0, 4),
+        poster: r.poster_path ? `https://image.tmdb.org/t/p/w300${r.poster_path}` : null,
+        backdrop: r.backdrop_path ? `https://image.tmdb.org/t/p/w780${r.backdrop_path}` : null,
+        rating: r.vote_average ? r.vote_average.toFixed(1) : null,
+        overview: (r.overview || '').slice(0, 150),
+        type,
+      });
+
+      const movies = moviesRes.ok ? (await moviesRes.json()).results.slice(0, 10).map(r => mapItem(r, 'movie')) : [];
+      const tv = tvRes.ok ? (await tvRes.json()).results.slice(0, 10).map(r => mapItem(r, 'tv')) : [];
+
+      const result = { success: true, movies, tv };
+      tmdbCache.set(cacheKey, result);
+      res.json(result);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
   return router;
 };

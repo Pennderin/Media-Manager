@@ -206,7 +206,12 @@ function selectBestTorrent(results, type, prefs, tvMode, tvSeason, requestYear, 
       var episodeMatches = filtered.filter(function (r) {
         return new RegExp('S' + sNum + 'E' + eNum + '\\b', 'i').test(r.title);
       });
-      if (episodeMatches.length) filtered = episodeMatches;
+      if (episodeMatches.length) {
+        filtered = episodeMatches;
+      } else {
+        // Don't silently grab a different episode — return null so fallback logic can try season packs
+        return null;
+      }
     }
   }
 

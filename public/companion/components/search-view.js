@@ -15,10 +15,6 @@ class SearchView extends HTMLElement {
   connectedCallback() {
     this._render();
     this._setupListeners();
-    window.addEventListener('mm-indexer-changed', (e) => {
-      this._indexer = e.detail.id;
-      this._updateIndexerPills();
-    });
   }
 
   onActivated() {}
@@ -45,26 +41,12 @@ class SearchView extends HTMLElement {
               <mm-icon name="x" size="14"></mm-icon>
             </button>
           </div>
-          <div class="type-toggle">
-            <button class="type-btn active" data-type="">All</button>
-            <button class="type-btn" data-type="movie">Movies</button>
-            <button class="type-btn" data-type="tv">TV Shows</button>
-          </div>
-          <div class="indexer-pills" id="indexerPills">
-            <button class="indexer-pill" data-idx="1337x">1337x</button>
-            <button class="indexer-pill" data-idx="extto">ext.to</button>
-            <button class="indexer-pill" data-idx="nyaa">Nyaa</button>
-          </div>
         </div>
 
         <!-- Results -->
         <div class="results-scroll" id="resultsScroll">
           <div id="searchResults" class="results-container">
-            <div class="empty-state">
-              <mm-icon name="search" size="48"></mm-icon>
-              <p class="empty-title">Search for a movie or TV show</p>
-              <p class="empty-sub">Tap <strong>Get</strong> to add it to your library</p>
-            </div>
+            <div class="trending-loading"><mm-spinner size="24"></mm-spinner></div>
           </div>
         </div>
       </div>
@@ -74,7 +56,7 @@ class SearchView extends HTMLElement {
       <!-- Detail sheet overlay -->
       <div id="detailOverlay"></div>
     `;
-    this._updateIndexerPills();
+    this._loadTrending();
   }
 
   _setupListeners() {
@@ -87,7 +69,7 @@ class SearchView extends HTMLElement {
       clear.classList.toggle('visible', q.length > 0);
       clearTimeout(this._searchTimeout);
       if (q.length === 0) {
-        this._showEmpty();
+        this._showTrending();
         return;
       }
       const delay = q.length < 3 ? 600 : 300;
@@ -98,48 +80,120 @@ class SearchView extends HTMLElement {
     clear.addEventListener('click', () => {
       input.value = '';
       clear.classList.remove('visible');
-      this._showEmpty();
+      this._showTrending();
       input.focus();
     });
 
-    // Type toggle
-    this.shadowRoot.querySelectorAll('.type-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        this.shadowRoot.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        this._searchType = btn.dataset.type;
-        const q = input.value.trim();
-        if (q.length >= 2) this._doSearch(q);
-      });
+    // Type cycle from header
+    window.addEventListener('mm-type-changed', (e) => {
+      this._searchType = e.detail.type;
+      const q = input.value.trim();
+      if (q.length >= 2) this._doSearch(q);
     });
 
-    // Indexer pills
-    this.shadowRoot.querySelectorAll('.indexer-pill').forEach(pill => {
-      pill.addEventListener('click', () => {
-        AppShell.setIndexer(pill.dataset.idx);
-        this._indexer = pill.dataset.idx;
-        this._updateIndexerPills();
-      });
-    });
-  }
-
-  _updateIndexerPills() {
-    const cur = this._indexer || AppShell.getIndexer();
-    this.shadowRoot.querySelectorAll('.indexer-pill').forEach(p => {
-      p.classList.toggle('active', p.dataset.idx === cur);
+    // Indexer change from header
+    window.addEventListener('mm-indexer-changed', (e) => {
+      this._indexer = e.detail.id;
     });
   }
 
   _showEmpty() {
+    this._results = [];
+    this._showTrending();
+  }
+
+  _showTrending() {
+    if (this._trendingData) {
+      this._renderTrending(this._trendingData);
+    } else {
+      this._loadTrending();
+    }
+  }
+
+  async _loadTrending() {
+    const container = this.shadowRoot.querySelector('#searchResults');
+    try {
+      const data = await AppShell.api('/companion/api/trending');
+      if (data.success) {
+        this._trendingData = data;
+        this._renderTrending(data);
+      } else {
+        this._renderFallbackHome();
+      }
+    } catch {
+      this._renderFallbackHome();
+    }
+  }
+
+  _renderFallbackHome() {
     const container = this.shadowRoot.querySelector('#searchResults');
     container.innerHTML = `
-      <div class="empty-state">
-        <mm-icon name="search" size="48"></mm-icon>
-        <p class="empty-title">Search for a movie or TV show</p>
-        <p class="empty-sub">Tap <strong>Get</strong> to add it to your library</p>
+      <div class="home-hero">
+        <div class="hero-icon">
+          <svg viewBox="0 0 512 512" width="48" height="48">
+            <rect x="64" y="64" width="384" height="384" rx="48" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="24"/>
+            <circle cx="256" cy="256" r="80" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="24"/>
+            <circle cx="256" cy="256" r="24" fill="var(--mm-accent, #6c8cff)"/>
+          </svg>
+        </div>
+        <p class="hero-title">What do you want to watch?</p>
+        <p class="hero-sub">Search for movies and TV shows to add to your library</p>
       </div>
     `;
-    this._results = [];
+  }
+
+  _renderTrending(data) {
+    const container = this.shadowRoot.querySelector('#searchResults');
+    const esc = AppShell.escHtml;
+
+    const makeRow = (items) => items.map((r, i) => `
+      <div class="trend-card" data-trend-idx="${i}" data-trend-type="${r.type}" data-trend-id="${r.id}">
+        ${r.poster
+          ? `<img class="trend-poster" src="${r.poster}" alt="${esc(r.title)}" loading="lazy">`
+          : `<div class="trend-poster-ph"><mm-icon name="film" size="24"></mm-icon></div>`
+        }
+        <div class="trend-info">
+          <div class="trend-title">${esc(r.title)}</div>
+          <div class="trend-meta">
+            ${r.year ? `<span>${r.year}</span>` : ''}
+            ${r.rating && r.rating !== '0.0' ? `<span class="trend-rating">★ ${r.rating}</span>` : ''}
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    container.innerHTML = `
+      <div class="trending-home">
+        ${data.movies && data.movies.length ? `
+          <div class="trend-section">
+            <h3 class="trend-heading"><mm-icon name="trending-up" size="16"></mm-icon> Trending Movies</h3>
+            <div class="trend-scroll">${makeRow(data.movies)}</div>
+          </div>
+        ` : ''}
+        ${data.tv && data.tv.length ? `
+          <div class="trend-section">
+            <h3 class="trend-heading"><mm-icon name="tv" size="16"></mm-icon> Trending TV Shows</h3>
+            <div class="trend-scroll">${makeRow(data.tv)}</div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    // Store trending items for click handling
+    this._trendingItems = [...(data.movies || []), ...(data.tv || [])];
+
+    // Click handler for trending cards
+    container.querySelectorAll('.trend-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const id = parseInt(card.dataset.trendId);
+        const type = card.dataset.trendType;
+        const item = this._trendingItems.find(t => t.id === id && t.type === type);
+        if (item) {
+          this._results = [item];
+          this._showDetailSheet(0);
+        }
+      });
+    });
   }
 
   async _doSearch(query) {
@@ -649,40 +703,75 @@ class SearchView extends HTMLElement {
       }
       .search-clear.visible { display: flex; }
 
-      /* Type toggle */
-      .type-toggle { display: flex; gap: 8px; margin-top: 10px; }
-      .type-btn {
-        padding: 7px 16px; border-radius: 20px;
-        border: 1.5px solid var(--mm-border, #1e2030);
-        background: var(--mm-bg-surface, #10121a);
-        color: var(--mm-text-secondary, #8b8fa3);
-        font-size: 13px; font-weight: 600; cursor: pointer;
-        transition: all 0.15s; font-family: inherit;
-      }
-      .type-btn.active {
-        background: var(--mm-accent-glow, rgba(108,92,231,0.18));
-        color: var(--mm-accent, #6c5ce7);
-        border-color: var(--mm-accent, #6c5ce7);
-      }
-      .type-btn:active { transform: scale(0.96); }
+      /* ── Trending Home ───────────────────────────────────── */
+      .trending-home { padding-bottom: 20px; }
+      .trending-loading { display: flex; justify-content: center; padding: 60px; }
 
-      /* Indexer pills */
-      .indexer-pills { display: flex; gap: 6px; margin-top: 8px; }
-      .indexer-pill {
-        flex: 1; padding: 8px 0; text-align: center;
-        font-size: 12px; font-weight: 600;
-        border-radius: 10px;
-        border: 1.5px solid var(--mm-border, #1e2030);
-        background: var(--mm-bg-surface, #10121a);
-        color: var(--mm-text-secondary, #8b8fa3);
-        cursor: pointer; transition: all 0.15s; font-family: inherit;
+      .trend-section { margin-bottom: 24px; }
+      .trend-heading {
+        display: flex; align-items: center; gap: 8px;
+        font-size: 15px; font-weight: 700; margin-bottom: 12px;
+        color: var(--mm-text-primary, #e2e4ed);
+        letter-spacing: -0.2px;
       }
-      .indexer-pill.active {
-        background: var(--mm-accent-glow, rgba(108,92,231,0.18));
-        color: var(--mm-accent, #6c5ce7);
-        border-color: var(--mm-accent, #6c5ce7);
+      .trend-heading mm-icon { color: var(--mm-accent, #6c8cff); }
+
+      .trend-scroll {
+        display: flex; gap: 10px;
+        overflow-x: auto; -webkit-overflow-scrolling: touch;
+        padding-bottom: 4px; scroll-snap-type: x proximity;
       }
-      .indexer-pill:active { transform: scale(0.96); }
+      .trend-scroll::-webkit-scrollbar { height: 0; }
+
+      .trend-card {
+        flex: 0 0 120px; cursor: pointer;
+        border-radius: 10px; overflow: hidden;
+        background: var(--mm-bg-surface, #111318);
+        border: 1px solid var(--mm-border, rgba(255,255,255,0.08));
+        transition: transform 0.15s, box-shadow 0.15s;
+        scroll-snap-align: start;
+      }
+      .trend-card:active { transform: scale(0.96); }
+      .trend-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+
+      .trend-poster {
+        width: 100%; aspect-ratio: 2/3; object-fit: cover; display: block;
+        background: var(--mm-bg-elevated, #1a1c23);
+      }
+      .trend-poster-ph {
+        width: 100%; aspect-ratio: 2/3;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--mm-bg-elevated, #1a1c23);
+        color: var(--mm-text-muted, rgba(255,255,255,0.38));
+      }
+      .trend-info { padding: 8px 8px 10px; }
+      .trend-title {
+        font-size: 11px; font-weight: 600; line-height: 1.3;
+        overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      }
+      .trend-meta {
+        display: flex; align-items: center; gap: 6px; margin-top: 3px;
+        font-size: 10px; color: var(--mm-text-secondary, rgba(255,255,255,0.6));
+      }
+      .trend-rating { color: var(--mm-warning, #fbbf24); font-weight: 700; }
+
+      .home-hero {
+        text-align: center; padding: 80px 20px 40px;
+        display: flex; flex-direction: column; align-items: center; gap: 12px;
+      }
+      .hero-icon {
+        width: 80px; height: 80px; border-radius: 20px;
+        background: var(--mm-accent-subtle, rgba(108,140,255,0.12));
+        display: flex; align-items: center; justify-content: center;
+        margin-bottom: 8px;
+      }
+      .hero-title {
+        font-size: 18px; font-weight: 700; color: var(--mm-text-primary, #e2e4ed);
+      }
+      .hero-sub {
+        font-size: 13px; color: var(--mm-text-secondary, rgba(255,255,255,0.6));
+        max-width: 260px;
+      }
 
       /* ── Results Scroll ──────────────────────────────────── */
       .results-scroll {

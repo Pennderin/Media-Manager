@@ -172,6 +172,12 @@ class AppShell extends HTMLElement {
     this._checkAuth();
   }
 
+  _updateHeaderControls() {
+    const controls = this.shadowRoot?.querySelector('#headerControls');
+    if (!controls) return;
+    controls.classList.toggle('hidden', this._currentView !== 'search');
+  }
+
   // ── Navigation ──────────────────────────────────────────────
   _switchView(name) {
     if (name === this._currentView) return;
@@ -203,6 +209,8 @@ class AppShell extends HTMLElement {
     // Deactivate old view
     const oldViewEl = oldView && oldView.querySelector('search-view, requests-view, top20-view, settings-view');
     if (oldViewEl && typeof oldViewEl.onDeactivated === 'function') oldViewEl.onDeactivated();
+
+    this._updateHeaderControls();
   }
 
   // ── Toast listener ──────────────────────────────────────────
@@ -240,7 +248,15 @@ class AppShell extends HTMLElement {
       <style>${AppShell._shellStyles()}</style>
       <div class="loading-screen">
         <div class="loading-logo">
-          <mm-icon name="film" size="32"></mm-icon>
+          <svg viewBox="0 0 512 512" width="32" height="32">
+            <rect x="64" y="64" width="384" height="384" rx="48" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="28"/>
+            <circle cx="256" cy="256" r="80" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="28"/>
+            <circle cx="256" cy="256" r="24" fill="var(--mm-accent, #6c8cff)"/>
+            <path d="M256 64 L220 112 L292 112 Z" fill="var(--mm-accent, #6c8cff)"/>
+            <path d="M256 448 L220 400 L292 400 Z" fill="var(--mm-accent, #6c8cff)"/>
+            <path d="M64 256 L112 220 L112 292 Z" fill="var(--mm-accent, #6c8cff)"/>
+            <path d="M448 256 L400 220 L400 292 Z" fill="var(--mm-accent, #6c8cff)"/>
+          </svg>
         </div>
         <div class="loading-text">Media Companion</div>
       </div>
@@ -253,7 +269,15 @@ class AppShell extends HTMLElement {
       <div class="pin-screen">
         <div class="pin-card">
           <div class="pin-icon">
-            <mm-icon name="film" size="40"></mm-icon>
+            <svg viewBox="0 0 512 512" width="40" height="40">
+              <rect x="64" y="64" width="384" height="384" rx="48" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="28"/>
+              <circle cx="256" cy="256" r="80" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="28"/>
+              <circle cx="256" cy="256" r="24" fill="var(--mm-accent, #6c8cff)"/>
+              <path d="M256 64 L220 112 L292 112 Z" fill="var(--mm-accent, #6c8cff)"/>
+              <path d="M256 448 L220 400 L292 400 Z" fill="var(--mm-accent, #6c8cff)"/>
+              <path d="M64 256 L112 220 L112 292 Z" fill="var(--mm-accent, #6c8cff)"/>
+              <path d="M448 256 L400 220 L400 292 Z" fill="var(--mm-accent, #6c8cff)"/>
+            </svg>
           </div>
           <h2 class="pin-title">Media Companion</h2>
           <p class="pin-subtitle">Enter your PIN to continue</p>
@@ -288,9 +312,21 @@ class AppShell extends HTMLElement {
         <!-- Header -->
         <header class="app-header">
           <div class="header-logo">
-            <mm-icon name="film" size="20"></mm-icon>
+            <svg viewBox="0 0 512 512" width="22" height="22">
+              <rect x="64" y="64" width="384" height="384" rx="48" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="28"/>
+              <circle cx="256" cy="256" r="80" fill="none" stroke="var(--mm-accent, #6c8cff)" stroke-width="28"/>
+              <circle cx="256" cy="256" r="24" fill="var(--mm-accent, #6c8cff)"/>
+              <path d="M256 64 L220 112 L292 112 Z" fill="var(--mm-accent, #6c8cff)"/>
+              <path d="M256 448 L220 400 L292 400 Z" fill="var(--mm-accent, #6c8cff)"/>
+              <path d="M64 256 L112 220 L112 292 Z" fill="var(--mm-accent, #6c8cff)"/>
+              <path d="M448 256 L400 220 L400 292 Z" fill="var(--mm-accent, #6c8cff)"/>
+            </svg>
           </div>
           <h1 class="header-title">Media Companion</h1>
+          <div class="header-controls" id="headerControls">
+            <button class="cycle-btn" id="typeCycle" title="Filter type">All</button>
+            <button class="cycle-btn" id="indexerCycle" title="Indexer">EXT</button>
+          </div>
           <div class="header-status">
             <span class="status-dot ${this._connected === true ? 'ok' : this._connected === false ? 'err' : 'unknown'}"></span>
           </div>
@@ -341,6 +377,38 @@ class AppShell extends HTMLElement {
     this.shadowRoot.querySelectorAll('.nav-item').forEach(btn => {
       btn.addEventListener('click', () => this._switchView(btn.dataset.view));
     });
+
+    // Cycling buttons
+    const typeStates = ['All', 'Movies', 'TV'];
+    const indexerStates = [
+      { label: 'EXT', id: 'extto' },
+      { label: '1337X', id: '1337x' },
+      { label: 'NYAA', id: 'nyaa' },
+    ];
+    let typeIdx = 0;
+    let indexerIdx = indexerStates.findIndex(s => s.id === AppShell.getIndexer());
+    if (indexerIdx < 0) indexerIdx = 0;
+
+    const typeCycle = this.shadowRoot.querySelector('#typeCycle');
+    const indexerCycle = this.shadowRoot.querySelector('#indexerCycle');
+    typeCycle.textContent = typeStates[typeIdx];
+    indexerCycle.textContent = indexerStates[indexerIdx].label;
+
+    typeCycle.addEventListener('click', () => {
+      typeIdx = (typeIdx + 1) % typeStates.length;
+      typeCycle.textContent = typeStates[typeIdx];
+      const typeMap = { 'All': '', 'Movies': 'movie', 'TV': 'tv' };
+      window.dispatchEvent(new CustomEvent('mm-type-changed', { detail: { type: typeMap[typeStates[typeIdx]] } }));
+    });
+
+    indexerCycle.addEventListener('click', () => {
+      indexerIdx = (indexerIdx + 1) % indexerStates.length;
+      indexerCycle.textContent = indexerStates[indexerIdx].label;
+      AppShell.setIndexer(indexerStates[indexerIdx].id);
+    });
+
+    // Show/hide header controls based on view
+    this._updateHeaderControls();
 
     // Toast listener
     this._setupToast();
@@ -457,7 +525,22 @@ class AppShell extends HTMLElement {
       .header-title {
         font-size: 20px; font-weight: 700; letter-spacing: -0.3px; flex: 1;
       }
-      .header-status { display: flex; align-items: center; }
+      .header-controls {
+        display: flex; gap: 6px; align-items: center;
+      }
+      .header-controls.hidden { display: none; }
+      .cycle-btn {
+        padding: 5px 12px; border-radius: 8px;
+        border: 1.5px solid var(--mm-border, rgba(255,255,255,0.08));
+        background: var(--mm-bg-surface, #111318);
+        color: var(--mm-accent, #6c8cff);
+        font-size: 11px; font-weight: 700; cursor: pointer;
+        font-family: inherit; letter-spacing: 0.3px;
+        transition: all 0.15s; text-transform: uppercase;
+        white-space: nowrap; line-height: 1;
+      }
+      .cycle-btn:active { transform: scale(0.93); }
+      .header-status { display: flex; align-items: center; margin-left: 4px; }
       .status-dot {
         width: 8px; height: 8px; border-radius: 50%;
       }

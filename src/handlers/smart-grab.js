@@ -149,31 +149,17 @@ function setupSmartGrabRoutes(app, store, auth) {
           const sNum = String(tvSeason).padStart(2, '0');
           const eNum = String(tvEpisode).padStart(2, '0');
           searchQuery = year ? `${title} ${year} S${sNum}E${eNum}` : `${title} S${sNum}E${eNum}`; requestLabel = `${title} S${sNum}E${eNum}`;
-        } else if (tvMode === 'latest' && tmdbId) {
-          try {
-            const tmdbCfg = store.get('tmdb') || {};
-            if (tmdbCfg.apiKey) {
-              const showRes = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${tmdbCfg.apiKey}`);
-              if (showRes.ok) {
-                const show = await showRes.json();
-                const lastEp = show.last_episode_to_air;
-                if (lastEp) {
-                  tvSeason = lastEp.season_number; tvEpisode = lastEp.episode_number;
-                  const sNum = String(tvSeason).padStart(2, '0');
-                  const eNum = String(tvEpisode).padStart(2, '0');
-                  searchQuery = year ? `${title} ${year} S${sNum}E${eNum}` : `${title} S${sNum}E${eNum}`; requestLabel = `${title} S${sNum}E${eNum} (Latest)`;
-                } else {
-                  const today = new Date().toISOString().slice(0, 10);
-                  const aired = (show.seasons || []).filter(s => s.season_number > 0 && s.air_date && s.air_date <= today);
-                  if (aired.length) {
-                    const sNum = String(aired[aired.length - 1].season_number).padStart(2, '0');
-                    searchQuery = `${title} S${sNum}`; requestLabel = `${title} Season ${aired[aired.length - 1].season_number} (Latest)`;
-                  } else { searchQuery = title; requestLabel = `${title} (Latest)`; }
-                }
-              } else { searchQuery = title; requestLabel = `${title} (Latest)`; }
-            } else { searchQuery = title; requestLabel = `${title} (Latest)`; }
-          } catch { searchQuery = title; requestLabel = `${title} (Latest)`; }
-        } else { searchQuery = title; requestLabel = tvMode === 'latest' ? `${title} (Latest)` : title; }
+        } else if (tvMode === 'latest') {
+          // tvSeason/tvEpisode already resolved from TMDB above (lines 63-79)
+          if (tvSeason && tvEpisode) {
+            const sNum = String(tvSeason).padStart(2, '0');
+            const eNum = String(tvEpisode).padStart(2, '0');
+            searchQuery = year ? `${title} ${year} S${sNum}E${eNum}` : `${title} S${sNum}E${eNum}`;
+            requestLabel = `${title} S${sNum}E${eNum} (Latest)`;
+          } else {
+            return res.status(404).json({ error: 'Could not determine latest episode from TMDB' });
+          }
+        } else { searchQuery = title; requestLabel = title; }
       } else {
         searchQuery = year ? `${title} ${year}` : title;
       }
@@ -182,23 +168,15 @@ function setupSmartGrabRoutes(app, store, auth) {
       let torrents = await prowlarrSearch(store, searchQuery, 'search', primaryIndexer, exclusiveIndexer);
       console.log(`[smart-grab] "${searchQuery}" => ${torrents.length} results`);
 
-      // TV fallback searches
+      // TV fallback searches — only for full season/series modes, never for single episodes
       if (contentType === 'tv' && !torrents.length) {
-        if (tvMode === 'episode' && tvSeason && tvEpisode) {
-          const fallback = `${title} S${String(tvSeason).padStart(2, '0')}`;
-          console.log(`[smart-grab] No episode found, trying season: "${fallback}"`);
-          torrents = await prowlarrSearch(store, fallback, 'search', primaryIndexer, exclusiveIndexer);
-          if (torrents.length) { tvMode = 'season'; requestLabel += ' (via season pack)'; }
-        } else if (tvMode === 'latest' && tvSeason) {
-          torrents = await prowlarrSearch(store, year ? `${title} ${year} S${String(tvSeason).padStart(2, '0')}` : `${title} S${String(tvSeason).padStart(2, '0')}`, 'search', primaryIndexer, exclusiveIndexer);
-        } else if (tvMode === 'full') {
+        if (tvMode === 'full') {
           torrents = await prowlarrSearch(store, `${title} complete`, 'search', primaryIndexer, exclusiveIndexer);
           if (!torrents.length) torrents = await prowlarrSearch(store, `${title} all seasons`, 'search', primaryIndexer, exclusiveIndexer);
+        } else if (tvMode === 'season' && tvSeason) {
+          console.log(`[smart-grab] Trying bare title for season: "${title}"`);
+          torrents = await prowlarrSearch(store, title, 'search', primaryIndexer, exclusiveIndexer);
         }
-      }
-      if (contentType === 'tv' && !torrents.length) {
-        console.log(`[smart-grab] Trying bare title: "${title}"`);
-        torrents = await prowlarrSearch(store, title, 'search', primaryIndexer, exclusiveIndexer);
       }
       if (!torrents.length) return res.status(404).json({ error: 'No torrents found', query: searchQuery });
 
