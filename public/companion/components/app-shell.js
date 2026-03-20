@@ -13,6 +13,14 @@ class AppShell extends HTMLElement {
   }
 
   connectedCallback() {
+    // Set --app-height from actual visible area (bulletproof on iOS PWA)
+    const setHeight = () => {
+      document.documentElement.style.setProperty('--app-height', window.innerHeight + 'px');
+    };
+    setHeight();
+    window.addEventListener('resize', setHeight);
+    window.addEventListener('orientationchange', () => setTimeout(setHeight, 100));
+
     this._render();
     this._checkAuth();
   }
@@ -409,7 +417,7 @@ class AppShell extends HTMLElement {
       /* ── Loading Screen ──────────────────────────────────── */
       .loading-screen {
         display: flex; flex-direction: column; align-items: center; justify-content: center;
-        min-height: 100dvh; gap: 16px;
+        min-height: var(--app-height, 100vh); gap: 16px;
       }
       .loading-logo {
         width: 64px; height: 64px; border-radius: 16px;
@@ -425,7 +433,7 @@ class AppShell extends HTMLElement {
       /* ── PIN Screen ──────────────────────────────────────── */
       .pin-screen {
         display: flex; align-items: center; justify-content: center;
-        min-height: 100dvh; padding: 24px;
+        min-height: var(--app-height, 100vh); padding: 24px;
       }
       .pin-card {
         width: 100%; max-width: 340px; text-align: center;
@@ -484,7 +492,7 @@ class AppShell extends HTMLElement {
       /* ── App Container ───────────────────────────────────── */
       .app-container {
         display: flex; flex-direction: column;
-        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        width: 100%; height: var(--app-height, 100vh);
         overflow: hidden;
       }
 

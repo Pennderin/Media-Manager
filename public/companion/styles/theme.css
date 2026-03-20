@@ -45,7 +45,7 @@ body {
   color: var(--mm-text-primary);
   font-family: var(--mm-font-sans);
   margin: 0;
-  height: 100dvh;
+  height: var(--app-height, 100vh);
   overflow: hidden;
   padding: 0;
   -webkit-font-smoothing: antialiased;
@@ -133,6 +133,6 @@ body {
 /* Prevent layout shift while components register */
 app-shell:not(:defined) {
   display: block;
-  height: 100dvh;
+  height: var(--app-height, 100vh);
   background: var(--mm-bg-base);
 }
