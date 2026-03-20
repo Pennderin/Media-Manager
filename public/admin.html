@@ -771,9 +771,10 @@
     try {
       const updates = {};
 
-      // Simple fields
+      // Simple fields (skip redacted values to avoid overwriting real credentials)
       for (const [cfgPath, elId] of Object.entries(fieldMap)) {
         let val = getVal(elId);
+        if (val === '***REDACTED***') continue;
         const el = document.getElementById(elId);
         if (el && el.type === 'number') val = parseInt(val) || 0;
         updates[cfgPath] = val;

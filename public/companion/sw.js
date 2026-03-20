@@ -1,4 +1,4 @@
-const CACHE = 'media-companion-v11';
+const CACHE = 'media-companion-v12';
 const ASSETS = ['/companion/manifest.json'];
 
 self.addEventListener('install', e => {
@@ -24,7 +24,7 @@ self.addEventListener('fetch', e => {
         const clone = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, clone));
         return res;
-      }).catch(() => caches.match(e.request))
+      }).catch(() => caches.match(e.request).then(r => r || new Response('Offline', { status: 503 })))
     );
     return;
   }
