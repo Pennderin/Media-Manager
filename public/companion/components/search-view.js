@@ -629,6 +629,7 @@ class SearchView extends HTMLElement {
         flex: 1; overflow-y: auto; padding: 8px 20px 24px;
         -webkit-overflow-scrolling: touch;
       }
+      .results-container { min-height: 100%; }
 
       /* ── Poster Grid ─────────────────────────────────────── */
       .poster-grid {
