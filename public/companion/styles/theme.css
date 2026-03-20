@@ -45,7 +45,7 @@ body {
   color: var(--mm-text-primary);
   font-family: var(--mm-font-sans);
   margin: 0;
-  min-height: 100dvh;
+  height: 100dvh;
   overflow: hidden;
   padding-top: var(--safe-top);
   padding-left: var(--safe-left);
@@ -135,6 +135,6 @@ body {
 /* Prevent layout shift while components register */
 app-shell:not(:defined) {
   display: block;
-  min-height: 100dvh;
+  height: 100dvh;
   background: var(--mm-bg-base);
 }

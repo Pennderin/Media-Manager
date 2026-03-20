@@ -67,7 +67,7 @@ class SearchView extends HTMLElement {
       clear.classList.toggle('visible', q.length > 0);
       clearTimeout(this._searchTimeout);
       if (q.length === 0) {
-        this._showTrending();
+        this._showEmpty();
         return;
       }
       const delay = q.length < 3 ? 600 : 300;

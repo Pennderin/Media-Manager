@@ -400,7 +400,8 @@ class AppShell extends HTMLElement {
     return `
       :host {
         display: block;
-        min-height: 100dvh;
+        height: 100dvh;
+        overflow: hidden;
         background: var(--mm-bg-base, #08090d);
         color: var(--mm-text-primary, #e2e4ed);
         font-family: var(--mm-font-sans, -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif);
