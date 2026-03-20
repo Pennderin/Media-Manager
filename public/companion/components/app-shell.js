@@ -13,19 +13,6 @@ class AppShell extends HTMLElement {
   }
 
   connectedCallback() {
-    // Use visualViewport (most accurate on iOS) to always fit visible area
-    const setHeight = () => {
-      const h = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-      document.documentElement.style.setProperty('--app-height', h + 'px');
-    };
-    setHeight();
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', setHeight);
-      window.visualViewport.addEventListener('scroll', setHeight);
-    }
-    window.addEventListener('resize', setHeight);
-    window.addEventListener('orientationchange', () => setTimeout(setHeight, 150));
-
     this._render();
     this._checkAuth();
   }
@@ -413,6 +400,7 @@ class AppShell extends HTMLElement {
     return `
       :host {
         display: block;
+        height: 100%;
         overflow: hidden;
         background: var(--mm-bg-base, #08090d);
         color: var(--mm-text-primary, #e2e4ed);
@@ -422,7 +410,7 @@ class AppShell extends HTMLElement {
       /* ── Loading Screen ──────────────────────────────────── */
       .loading-screen {
         display: flex; flex-direction: column; align-items: center; justify-content: center;
-        min-height: var(--app-height, 100vh); gap: 16px;
+        height: 100%; gap: 16px;
       }
       .loading-logo {
         width: 64px; height: 64px; border-radius: 16px;
@@ -438,7 +426,7 @@ class AppShell extends HTMLElement {
       /* ── PIN Screen ──────────────────────────────────────── */
       .pin-screen {
         display: flex; align-items: center; justify-content: center;
-        min-height: var(--app-height, 100vh); padding: 24px;
+        height: 100%; padding: 24px;
       }
       .pin-card {
         width: 100%; max-width: 340px; text-align: center;
@@ -497,14 +485,14 @@ class AppShell extends HTMLElement {
       /* ── App Container ───────────────────────────────────── */
       .app-container {
         display: flex; flex-direction: column;
-        width: 100%; height: var(--app-height, 100vh);
+        width: 100%; height: 100%;
         overflow: hidden;
       }
 
       /* ── Header ──────────────────────────────────────────── */
       .app-header {
         display: flex; align-items: center; gap: 12px;
-        padding: 14px 20px 10px; flex-shrink: 0;
+        padding: calc(14px + env(safe-area-inset-top, 0px)) 20px 10px; flex-shrink: 0;
       }
       .header-logo {
         width: 36px; height: 36px; border-radius: 10px;

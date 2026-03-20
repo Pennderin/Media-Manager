@@ -36,21 +36,22 @@
 }
 
 html, body {
-  height: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 0;
   overflow: hidden;
   overscroll-behavior: none;
-  -webkit-overflow-scrolling: auto;
-  touch-action: manipulation;
+  touch-action: none;
 }
 
 body {
   background: var(--mm-bg-base);
   color: var(--mm-text-primary);
   font-family: var(--mm-font-sans);
-  margin: 0;
-  padding: 0;
-  position: fixed;
-  width: 100%;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -136,6 +137,6 @@ body {
 /* Prevent layout shift while components register */
 app-shell:not(:defined) {
   display: block;
-  height: var(--app-height, 100vh);
+  height: 100%;
   background: var(--mm-bg-base);
 }
