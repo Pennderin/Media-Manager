@@ -22,13 +22,29 @@ const { normalizeName } = require('media-manager-shared');
  */
 async function stepTorrent(job, store, broadcast, helpers) {
   const s = store.get('seedbox'), base = s.qbitUrl.replace(/\/$/, '');
-  const lr = await fetch(`${base}/api/v2/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `username=${encodeURIComponent(s.qbitUsername)}&password=${encodeURIComponent(s.qbitPassword)}` });
-  const ck = (lr.headers.get('set-cookie') || '').split(';')[0];
+  let ck;
+  try {
+    const lr = await fetch(`${base}/api/v2/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `username=${encodeURIComponent(s.qbitUsername)}&password=${encodeURIComponent(s.qbitPassword)}`,
+      signal: AbortSignal.timeout(15000) });
+    ck = (lr.headers.get('set-cookie') || '').split(';')[0];
+  } catch (e) {
+    // Track consecutive failures for retry reporting
+    job._qbitRetries = (job._qbitRetries || 0) + 1;
+    const MAX_RETRIES = 30; // 30 × 10s polling = ~5 minutes
+    if (job._qbitRetries >= MAX_RETRIES) {
+      throw new Error(`qBittorrent unreachable for ${MAX_RETRIES} consecutive attempts — aborting`);
+    }
+    console.log(`[pipeline] qBit unreachable (attempt ${job._qbitRetries}/${MAX_RETRIES}): ${e.message}`);
+    job.progress = `qBit connection lost — retrying (${job._qbitRetries}/${MAX_RETRIES})...`;
+    return false; // Will retry on next poll cycle
+  }
+  // Reset retry counter on successful connection
+  job._qbitRetries = 0;
 
   // If no hash yet, find the torrent by name
   if (!job.options.torrentHash) {
-    const r = await fetch(`${base}/api/v2/torrents/info`, { headers: { 'Cookie': ck } });
+    const r = await fetch(`${base}/api/v2/torrents/info`, { headers: { 'Cookie': ck }, signal: AbortSignal.timeout(15000) });
     const allTs = await r.json();
 
     // Normalize for comparison: lowercase, strip dots/dashes/underscores, collapse spaces
@@ -78,13 +94,24 @@ async function stepTorrent(job, store, broadcast, helpers) {
     }
   }
 
-  const r = await fetch(`${base}/api/v2/torrents/info?hashes=${job.options.torrentHash}`, { headers: { 'Cookie': ck } });
-  const ts = await r.json(); if (!ts.length) throw new Error('Torrent not found');
+  let r, ts;
+  try {
+    r = await fetch(`${base}/api/v2/torrents/info?hashes=${job.options.torrentHash}`, { headers: { 'Cookie': ck }, signal: AbortSignal.timeout(15000) });
+    ts = await r.json();
+  } catch (e) {
+    job._qbitRetries = (job._qbitRetries || 0) + 1;
+    if (job._qbitRetries >= 30) throw new Error(`qBittorrent unreachable for 30 consecutive attempts — aborting`);
+    console.log(`[pipeline] qBit query failed (attempt ${job._qbitRetries}/30): ${e.message}`);
+    job.progress = `qBit connection lost — retrying (${job._qbitRetries}/30)...`;
+    return false;
+  }
+  job._qbitRetries = 0;
+  if (!ts.length) throw new Error('Torrent not found');
   const t = ts[0];
 
   if (!job.torrentFiles) {
     try {
-      const fr = await fetch(`${base}/api/v2/torrents/files?hash=${job.options.torrentHash}`, { headers: { 'Cookie': ck } });
+      const fr = await fetch(`${base}/api/v2/torrents/files?hash=${job.options.torrentHash}`, { headers: { 'Cookie': ck }, signal: AbortSignal.timeout(15000) });
       const files = await fr.json();
       const VID = ['.mkv', '.mp4', '.avi', '.m4v', '.wmv', '.mov', '.ts', '.flv', '.webm'];
       job.torrentFiles = files.filter(f => VID.includes(path.extname(f.name).toLowerCase())).map(f => ({ name: f.name, size: f.size }));
