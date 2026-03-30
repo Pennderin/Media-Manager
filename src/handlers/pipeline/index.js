@@ -163,7 +163,7 @@ async function processJob(job, store) {
         if (sftpBase && result.hash) {
           try {
             const tInfo = await _qbitRequest(store, `/api/v2/torrents/info?hashes=${result.hash}`);
-            const tData = JSON.parse(tInfo);
+            const tData = typeof tInfo === "string" ? JSON.parse(tInfo) : (tInfo.json ? await tInfo.json() : tInfo);
             if (tData.length && tData[0].content_path) {
               const savePath = (tData[0].save_path || '').replace(/\/$/, '');
               if (savePath && tData[0].content_path.startsWith(savePath)) {

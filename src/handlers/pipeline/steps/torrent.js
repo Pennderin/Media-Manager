@@ -77,7 +77,7 @@ async function stepTorrent(job, store, broadcast, helpers) {
       job.options.torrentHash = match.hash;
       job.name = match.name;
       // Build remote path from qBit's content_path
-      const sftpBase = s.sftpRemotePath ? s.sftpRemotePath.replace(/\/$/, '') : '';
+      const sftpBase = s.sftpRemotePath ? s.sftpRemotePath.replace(/\/$/, '') : (s.localDownloadPath || '');
       if (match.content_path && sftpBase) {
         const savePath = (match.save_path || '').replace(/\/$/, '');
         if (savePath && match.content_path.startsWith(savePath)) {
@@ -124,7 +124,7 @@ async function stepTorrent(job, store, broadcast, helpers) {
 
   if (t.progress >= 1) {
     // Re-resolve remotePath from content_path now that torrent is complete
-    const sftpBase2 = s.sftpRemotePath ? s.sftpRemotePath.replace(/\/$/, '') : '';
+    const sftpBase2 = s.sftpRemotePath ? s.sftpRemotePath.replace(/\/$/, '') : (s.localDownloadPath || '');
     if (sftpBase2 && t.content_path) {
       const savePath2 = (t.save_path || '').replace(/\/$/, '');
       if (savePath2 && t.content_path.startsWith(savePath2)) {
