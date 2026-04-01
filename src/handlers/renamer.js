@@ -5,7 +5,6 @@
 
 const path = require('path');
 const fs = require('fs');
-const { cleanForSearch: sharedCleanForSearch } = require('media-manager-shared');
 
 const VIDEO_EXTS = new Set(['.mkv','.mp4','.avi','.mov','.wmv','.flv','.m4v','.webm','.ts','.m2ts']);
 
@@ -31,11 +30,11 @@ function parseMediaFilename(filename) {
     if (match) {
       let series = match[1].trim();
       let seriesYear = null;
-      // Extract year from series name: bare "Scrubs 2026" or parenthesized "Ted Lasso (2020)"
-      const yearInSeries = series.match(/[\s._-]+[\(\[]?((?:19|20)\d{2})[\)\]]?$/);
+      // Extract year from series name (e.g. "Scrubs 2026" → series: "Scrubs", year: 2026)
+      const yearInSeries = series.match(/[\s._-]+((?:19|20)\d{2})$/);
       if (yearInSeries) {
         seriesYear = parseInt(yearInSeries[1]);
-        series = series.replace(/[\s._-]+[\(\[]?(?:19|20)\d{2}[\)\]]?$/, '').trim();
+        series = series.replace(/[\s._-]+(?:19|20)\d{2}$/, '').trim();
       }
       return { type: 'tv', series, seriesYear, season: parseInt(match[2]), episode: parseInt(match[3]), title: '', ...tags };
     }
@@ -191,11 +190,17 @@ function scanVideoFiles(dirPath) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// Clean name for TMDB search — delegated to shared library
+// Clean name for TMDB search
 // ══════════════════════════════════════════════════════════════════
 
 function cleanForSearch(name) {
-  return sharedCleanForSearch(name);
+  return name
+    .replace(/[\.\-\_]/g, ' ')
+    .replace(/\b(720p|1080p|2160p|4k|uhd|bluray|bdrip|brrip|webrip|web|dl|hdtv|dvdrip|x264|x265|h264|h265|hevc|avc|aac|ac3|atmos|dts|remux|proper|repack|internal|dubbed|subbed|multi|10bit|hdr|sdr|ddp|dv|dovi|5\.1)\b/gi, '')
+    .replace(/\bS\d{1,2}[\s._-]*E\d{1,3}\b/gi, '')
+    .replace(/\b(Season|S)\s*\d+/gi, '')
+    .replace(/\bE\d{1,3}\b/gi, '')
+    .replace(/\s{2,}/g, ' ').trim();
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -236,14 +241,8 @@ async function buildRenamePlan(stagingPath, type, apiKey, query) {
     }
   } else {
     const parsed = files.map(f => ({ path: f, ...parseMediaFilename(f) }));
-    let searchQuery = query || cleanForSearch(parsed[0].series || parsed[0].title || path.basename(files[0]));
-    let searchYear = parsed[0].seriesYear || null;
-    // Safety: strip (year) from search query if parser left it in
-    const yearInQuery = searchQuery.match(/\s*[\(\[]?((?:19|20)\d{2})[\)\]]?$/);
-    if (yearInQuery) {
-      if (!searchYear) searchYear = parseInt(yearInQuery[1]);
-      searchQuery = searchQuery.replace(/\s*[\(\[]?(?:19|20)\d{2}[\)\]]?$/, '').trim();
-    }
+    const searchQuery = query || cleanForSearch(parsed[0].series || parsed[0].title || path.basename(files[0]));
+    const searchYear = parsed[0].seriesYear || null;
     console.log('[renamer] TV search:', searchQuery, 'year:', searchYear, 'parsed[0]:', JSON.stringify({ series: parsed[0].series, seriesYear: parsed[0].seriesYear, season: parsed[0].season, episode: parsed[0].episode }));
 
     // Search with year first for disambiguation (e.g. Scrubs 2026 vs Scrubs 2001)
@@ -295,7 +294,7 @@ async function executeRenames(plan) {
   for (const op of plan) {
     try {
       const targetDir = path.dirname(op.to);
-      await fs.promises.mkdir(targetDir, { recursive: true, mode: 0o777 });
+      await fs.promises.mkdir(targetDir, { recursive: true });
 
       if (op.from === op.to) {
         results.push({ from: op.fromDisplay, to: op.toDisplay, success: true });

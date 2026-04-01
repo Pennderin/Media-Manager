@@ -1,35 +1,17 @@
 // ═══════════════════════════════════════════════════════════════════
-// Media Manager Server — Headless Docker Edition
+// Media Manager Server — Headless Docker Edition (Slim)
 // Express REST API + WebSocket for real-time pipeline updates
+// Stripped: prowlarr, sftp, search, top20 (now handled by Radarr/Sonarr)
+// Kept: qbit, renamer, tmdb, files, pipeline (manual grab workflow)
 // ═══════════════════════════════════════════════════════════════════
 
 const express = require('express');
 const http = require('http');
-const https = require('https');
 const { WebSocketServer } = require('ws');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const webpush = require('web-push');
-
-// Per-connection TLS bypass for self-signed certs (seedbox webUIs)
-const insecureAgent = new https.Agent({ rejectUnauthorized: false });
-
-// ========== CREDENTIAL REDACTION ==========
-function redactSensitive(obj) {
-  if (!obj || typeof obj !== 'object') return obj;
-  const redacted = Array.isArray(obj) ? [...obj] : { ...obj };
-  const sensitiveKeys = ['password', 'apikey', 'api_key', 'token', 'pass', 'secret', 'smtp'];
-  for (const key of Object.keys(redacted)) {
-    if (sensitiveKeys.some(s => key.toLowerCase().includes(s))) {
-      redacted[key] = '***REDACTED***';
-    } else if (typeof redacted[key] === 'object' && redacted[key] !== null) {
-      redacted[key] = redactSensitive(redacted[key]);
-    }
-  }
-  return redacted;
-}
 
 // ========== LOGGING ==========
 const LOG_LEVELS = { error: 0, warn: 1, info: 2, debug: 3 };
@@ -48,14 +30,11 @@ const CONFIG_DIR = process.env.CONFIG_DIR || '/config';
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
 
 const DEFAULT_CONFIG = {
-  seedbox: { qbitUrl: '', qbitUsername: '', qbitPassword: '', sftpHost: '', sftpPort: 22, sftpUsername: '', sftpPassword: '', sftpRemotePath: '' },
+  seedbox: { qbitUrl: '', qbitUsername: '', qbitPassword: '', localDownloadPath: '' },
   paths: { staging: '/staging', nasMovies: '', nasTVShows: '', nasKidsMovies: '', nasAsianMovies: '', nasAsianShows: '', nasAnimeMovies: '', nasAnimeShows: '' },
-  prowlarr: { url: '', apiKey: '' },
   tmdb: { apiKey: '' },
-  plex: { url: '', token: '' },
-  server: { port: 9876, apiKey: '', pin: '' },
-  sms: { smtpUser: '', smtpPass: '' },
-  directToPC: { enabled: false, localPath: '' }
+  pcQbit: { url: '', username: '', password: '' },
+  server: { port: 9876, apiKey: '' }
 };
 
 function loadConfig() {
@@ -70,6 +49,10 @@ function loadConfig() {
         } else if (data[section] !== undefined) {
           merged[section] = data[section];
         }
+      }
+      // Preserve any extra top-level keys (libraries, plex, pipeline_queue, etc.)
+      for (const key of Object.keys(data)) {
+        if (!(key in merged)) merged[key] = data[key];
       }
       return merged;
     }
@@ -89,7 +72,6 @@ let config = loadConfig();
 if (!fs.existsSync(CONFIG_PATH)) saveConfig(config);
 
 // ========== CONFIG STORE ADAPTER ==========
-// Provides the same .get()/.set() interface the handlers expect from electron-store
 const store = {
   get(key) {
     if (!key) return config;
@@ -114,46 +96,19 @@ const store = {
   get store() { return config; }
 };
 
-// ========== COMPANION: PIN AUTH & VAPID ==========
-const { createAuthMiddleware: createPinAuth } = require('./src/companion/middleware/auth');
-
-// Load or generate VAPID keys for web push
-let vapidKeys;
-const vapidPath = path.join(CONFIG_DIR, 'vapid.json');
-try {
-  vapidKeys = JSON.parse(fs.readFileSync(vapidPath, 'utf8'));
-} catch {
-  vapidKeys = webpush.generateVAPIDKeys();
-  try {
-    if (!fs.existsSync(CONFIG_DIR)) fs.mkdirSync(CONFIG_DIR, { recursive: true });
-    fs.writeFileSync(vapidPath, JSON.stringify(vapidKeys, null, 2));
-  } catch (e) { log('warn', 'companion', 'Could not save VAPID keys:', e.message); }
-}
-webpush.setVapidDetails('mailto:media-companion@local', vapidKeys.publicKey, vapidKeys.privateKey);
-
 // ========== EXPRESS APP ==========
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
-app.use('/admin', express.static(path.join(__dirname, 'public')));
-app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public', 'admin.html')));
 
-// Companion PWA static files
-app.use('/companion', express.static(path.join(__dirname, 'public', 'companion'), {
-  setHeaders: (res, filePath) => {
-    if (filePath.endsWith('.html')) {
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    }
-  },
-}));
-
-// TLS bypass is handled per-connection via insecureAgent (see top of file)
+// Allow self-signed certs (common on seedbox webUIs)
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
 // ========== AUTH MIDDLEWARE ==========
 function requireAuth(req, res, next) {
   const apiKey = config.server.apiKey;
   if (!apiKey) return next(); // no key = open access
-  const provided = req.headers['x-api-key'];
+  const provided = req.headers['x-api-key'] || req.query.apiKey;
   if (provided === apiKey) return next();
   res.status(401).json({ error: 'Invalid or missing API key' });
 }
@@ -164,20 +119,12 @@ const wss = new WebSocketServer({ server, path: '/ws' });
 
 const wsClients = new Set();
 wss.on('connection', (ws, req) => {
-  const url = new URL(req.url, `http://${req.headers.host}`);
   const apiKey = config.server.apiKey;
-  const pin = config.server.pin;
-
-  // Accept either API key or PIN for auth
-  const providedKey = url.searchParams.get('apiKey');
-  const providedPin = url.searchParams.get('pin');
-
-  if (apiKey || pin) {
-    const keyOk = apiKey && providedKey === apiKey;
-    const pinOk = pin && providedPin === pin;
-    if (!keyOk && !pinOk) { ws.close(4001, 'Unauthorized'); return; }
+  if (apiKey) {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    const provided = url.searchParams.get('apiKey');
+    if (provided !== apiKey) { ws.close(4001, 'Unauthorized'); return; }
   }
-
   wsClients.add(ws);
   log('info', 'ws', `Client connected (${wsClients.size} total)`);
   ws.on('close', () => { wsClients.delete(ws); });
@@ -193,35 +140,28 @@ function broadcast(type, data) {
 
 // ========== LOAD HANDLERS ==========
 const { setupQbitRoutes, qbitRequest, addAndDetect } = require('./src/handlers/qbit');
-const { setupSftpRoutes } = require('./src/handlers/sftp');
 const { setupRenamerRoutes, buildRenamePlan, executeRenames, tmdbSearchApi, cleanForSearch, parseMediaFilename } = require('./src/handlers/renamer');
-const { setupProwlarrRoutes } = require('./src/handlers/prowlarr');
 const { setupTmdbRoutes } = require('./src/handlers/tmdb');
 const { setupFilesRoutes } = require('./src/handlers/files');
-const { setupPipelineRoutes, getJobs: getPipelineJobs } = require('./src/handlers/pipeline');
-const { setupPlexRoutes } = require('./src/handlers/plex');
-const { setupSmartGrabRoutes } = require('./src/handlers/smart-grab');
+const { setupPipelineRoutes } = require('./src/handlers/pipeline');
 
 // ========== ROUTES ==========
 
 // Health check
 app.get('/ping', (req, res) => {
-  res.json({ status: 'ok', app: 'Media Manager Server', version: '2.1.0', uptime: process.uptime() });
+  res.json({ status: 'ok', app: 'Media Manager Server', version: '3.1.0', uptime: process.uptime() });
 });
 
 // Settings
 app.get('/api/settings', requireAuth, (req, res) => {
-  // Redact sensitive fields
   const safe = JSON.parse(JSON.stringify(config));
-  if (safe.seedbox.qbitPassword) safe.seedbox.qbitPassword = '••••••';
-  if (safe.seedbox.sftpPassword) safe.seedbox.sftpPassword = '••••••';
-  if (safe.server.apiKey) safe.server.apiKey = '••••••';
-  if (safe.sms && safe.sms.smtpPass) safe.sms.smtpPass = '••••••';
+  if (safe.seedbox?.qbitPassword) safe.seedbox.qbitPassword = '••••••';
+  if (safe.server?.apiKey) safe.server.apiKey = '••••••';
   res.json(safe);
 });
 
 app.get('/api/settings/raw', requireAuth, (req, res) => {
-  res.json(redactSensitive(config));
+  res.json(config);
 });
 
 app.put('/api/settings', requireAuth, (req, res) => {
@@ -244,7 +184,7 @@ app.put('/api/settings/bulk', requireAuth, (req, res) => {
 app.get('/api/diagnostics', requireAuth, (req, res) => {
   const diag = {
     server: {
-      version: '2.1.0',
+      version: '3.1.0',
       uptime: Math.round(process.uptime()),
       uptimeStr: formatUptime(process.uptime()),
       nodeVersion: process.version,
@@ -268,9 +208,7 @@ app.get('/api/diagnostics', requireAuth, (req, res) => {
       wsClients: wsClients.size,
     },
     config: {
-      seedboxConfigured: !!config.seedbox.qbitUrl,
-      sftpConfigured: !!config.seedbox.sftpHost,
-      prowlarrConfigured: !!(config.prowlarr.url && config.prowlarr.apiKey),
+      qbitConfigured: !!config.seedbox.qbitUrl,
       tmdbConfigured: !!config.tmdb.apiKey,
       stagingPath: config.paths.staging,
       stagingExists: fs.existsSync(config.paths.staging || ''),
@@ -279,11 +217,10 @@ app.get('/api/diagnostics', requireAuth, (req, res) => {
     paths: {},
   };
 
-  // Check all configured paths
   const pathKeys = Object.keys(config.paths);
   for (const key of pathKeys) {
     const p = config.paths[key];
-    if (p) {
+    if (p && typeof p === 'string') {
       diag.paths[key] = { path: p, exists: fs.existsSync(p), writable: false };
       try { fs.accessSync(p, fs.constants.W_OK); diag.paths[key].writable = true; } catch (e) {}
     }
@@ -301,30 +238,6 @@ app.get('/api/test/qbit', requireAuth, async (req, res) => {
   } catch (e) { res.json({ success: false, error: e.message }); }
 });
 
-app.get('/api/test/sftp', requireAuth, async (req, res) => {
-  const SftpClient = require('ssh2-sftp-client');
-  const sftp = new SftpClient();
-  try {
-    const s = config.seedbox;
-    await sftp.connect({ host: s.sftpHost, port: s.sftpPort || 22, username: s.sftpUsername, password: s.sftpPassword });
-    await sftp.end();
-    res.json({ success: true });
-  } catch (e) { res.json({ success: false, error: e.message }); }
-});
-
-app.get('/api/test/prowlarr', requireAuth, async (req, res) => {
-  try {
-    const cfg = config.prowlarr;
-    if (!cfg.url || !cfg.apiKey) throw new Error('Prowlarr not configured');
-    const r = await fetch(`${cfg.url.replace(/\/$/, '')}/api/v1/system/status`, {
-      headers: { 'X-Api-Key': cfg.apiKey, 'Accept': 'application/json' }
-    });
-    if (!r.ok) throw new Error(`Prowlarr ${r.status}`);
-    const data = await r.json();
-    res.json({ success: true, version: data.version });
-  } catch (e) { res.json({ success: false, error: e.message }); }
-});
-
 app.get('/api/test/tmdb', requireAuth, async (req, res) => {
   try {
     const apiKey = config.tmdb.apiKey;
@@ -335,7 +248,7 @@ app.get('/api/test/tmdb', requireAuth, async (req, res) => {
   } catch (e) { res.json({ success: false, error: e.message }); }
 });
 
-// Logs endpoint - return recent console output
+// Logs endpoint
 const logBuffer = [];
 const MAX_LOGS = 500;
 const origLog = console.log;
@@ -361,51 +274,36 @@ app.get('/api/logs', requireAuth, (req, res) => {
   res.json({ logs, count: logs.length });
 });
 
+
+// ========== ADMIN UI ==========
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+app.get('/', (req, res) => {
+  res.redirect('/admin');
+});
+
+// PC qBit connectivity test
+app.get('/api/test/pcqbit', requireAuth, async (req, res) => {
+  try {
+    const pc = config.pcQbit;
+    if (!pc || !pc.url) throw new Error('PC qBit not configured');
+    const base = pc.url.replace(/\/$/, '');
+    const lr = await fetch(`${base}/api/v2/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `username=${encodeURIComponent(pc.username || '')}&password=${encodeURIComponent(pc.password || '')}` });
+    const ck = (lr.headers.get('set-cookie') || '').split(';')[0];
+    const vr = await fetch(`${base}/api/v2/app/version`, { headers: { 'Cookie': ck } });
+    const version = await vr.text();
+    res.json({ success: true, version });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
 // ========== MOUNT HANDLER ROUTES ==========
 setupQbitRoutes(app, store, requireAuth);
-setupSftpRoutes(app, store, requireAuth);
 setupRenamerRoutes(app, store, requireAuth);
-setupProwlarrRoutes(app, store, requireAuth);
 setupTmdbRoutes(app, store, requireAuth);
 setupFilesRoutes(app, store, requireAuth);
 setupPipelineRoutes(app, store, requireAuth, broadcast, { qbitRequest, addAndDetect, buildRenamePlan, executeRenames, tmdbSearchApi, cleanForSearch, parseMediaFilename });
-setupPlexRoutes(app, store, requireAuth, getPipelineJobs);
-setupSmartGrabRoutes(app, store, requireAuth);
-
-// ========== SMS (Server-side SMTP) ==========
-const nodemailer = require('nodemailer');
-
-app.post('/api/sms/send', requireAuth, async (req, res) => {
-  try {
-    const { phone, carrier, message } = req.body;
-    if (!phone || !carrier || !message) return res.status(400).json({ error: 'phone, carrier, and message required' });
-    const smtpUser = process.env.SMTP_USER || config.sms.smtpUser;
-    const smtpPass = process.env.SMTP_PASS || config.sms.smtpPass;
-    if (!smtpUser || !smtpPass) return res.status(500).json({ error: 'SMTP credentials not configured — set them in Media Manager settings' });
-    const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: smtpUser, pass: smtpPass } });
-    await transporter.sendMail({ from: `"Media Manager" <${smtpUser}>`, to: `${phone}@${carrier}`, subject: '', text: message });
-    log('info', 'sms', `Sent to ${phone}@${carrier}`);
-    res.json({ success: true });
-  } catch (e) {
-    log('error', 'sms', 'Send failed:', e.message);
-    res.json({ success: false, error: e.message });
-  }
-});
-
-app.post('/api/sms/test', requireAuth, async (req, res) => {
-  try {
-    const { phone, carrier } = req.body;
-    if (!phone || !carrier) return res.json({ success: false, error: 'Phone and carrier required' });
-    const smtpUser = process.env.SMTP_USER || config.sms.smtpUser;
-    const smtpPass = process.env.SMTP_PASS || config.sms.smtpPass;
-    if (!smtpUser || !smtpPass) return res.json({ success: false, error: 'SMTP not configured in settings' });
-    const transporter = nodemailer.createTransport({ service: 'gmail', auth: { user: smtpUser, pass: smtpPass } });
-    await transporter.sendMail({ from: `"Media Manager" <${smtpUser}>`, to: `${phone}@${carrier}`, subject: '', text: '📺 Test from Media Manager — SMS notifications working!' });
-    res.json({ success: true });
-  } catch (e) {
-    res.json({ success: false, error: e.message });
-  }
-});
 
 // ========== MAGNET RECEIVE (Chrome Extension compatibility) ==========
 app.post('/magnet', (req, res) => {
@@ -416,51 +314,37 @@ app.post('/magnet', (req, res) => {
   res.json({ success: true, message: 'Magnet received' });
 });
 
-// ========== COMPANION ROUTES ==========
-const companionAuth = createPinAuth(() => store.get('server.pin') || process.env.PIN || '');
-const PORT = parseInt(process.env.PORT) || config.server.port || 9876;
-const companionConfig = {
-  ...config,
-  configDir: CONFIG_DIR,
-  vapidKeys,
-  internalBaseUrl: `http://127.0.0.1:${PORT}`,
-};
-
-const searchRoutes = require('./src/companion/routes/search');
-const mediaRoutes = require('./src/companion/routes/media');
-const topRoutes = require('./src/companion/routes/top');
-const configRoutes = require('./src/companion/routes/config');
-const plexCompanionRoutes = require('./src/companion/routes/plex');
-
-app.use('/companion/api', searchRoutes(companionConfig, companionAuth));
-app.use('/companion/api', mediaRoutes(companionConfig, companionAuth));
-app.use('/companion/api', topRoutes(companionConfig, companionAuth));
-app.use('/companion/api', configRoutes(companionConfig, companionAuth, { saveConfig, vapidKeys }));
-app.use('/companion/api', plexCompanionRoutes(companionConfig, companionAuth));
-
-// Companion health
-app.get('/companion/api/health', (req, res) => res.json({ status: 'ok', mode: 'integrated' }));
-
-// PWA fallback — any /companion/* route serves index.html
-app.get('/companion/*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'companion', 'index.html'));
-});
-
 // ========== HELPERS ==========
-const { formatBytes, formatUptime } = require('./src/utils');
+function formatBytes(b) {
+  if (!b || b < 0) return '0 B';
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(Math.abs(b)) / Math.log(1024));
+  return (b / Math.pow(1024, i)).toFixed(1) + ' ' + u[i];
+}
+
+function formatUptime(s) {
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  const parts = [];
+  if (d) parts.push(`${d}d`);
+  if (h) parts.push(`${h}h`);
+  parts.push(`${m}m`);
+  return parts.join(' ');
+}
 
 // ========== START ==========
+const PORT = parseInt(process.env.PORT) || config.server.port || 9876;
+
 server.listen(PORT, '0.0.0.0', () => {
   log('info', 'server', '═══════════════════════════════════════════');
-  log('info', 'server', '  Media Manager Server v2.1.0');
-  log('info', 'server', `  API:       http://0.0.0.0:${PORT}/api`);
-  log('info', 'server', `  Admin:     http://0.0.0.0:${PORT}/admin`);
-  log('info', 'server', `  Companion: http://0.0.0.0:${PORT}/companion`);
+  log('info', 'server', '  Media Manager Server v3.1.0');
+  log('info', 'server', `  API:       http://0.0.0.0:${PORT}`);
   log('info', 'server', `  WebSocket: ws://0.0.0.0:${PORT}/ws`);
-  log('info', 'server', `  Auth:      ${config.server.apiKey ? 'API Key' : 'Open'} | PIN: ${config.server.pin ? 'Set' : 'None'}`);
+  log('info', 'server', `  Auth:      ${config.server.apiKey ? 'Enabled' : 'Open (no API key set)'}`);
   log('info', 'server', `  Config:    ${CONFIG_PATH}`);
   log('info', 'server', `  Staging:   ${config.paths.staging}`);
+  log('info', 'server', `  Admin:     http://0.0.0.0:${PORT}/admin`);
+  log('info', 'server', '  Mode:      Slim (manual grabs only)');
   log('info', 'server', '═══════════════════════════════════════════');
 });
 
-module.exports = { app, server, store, broadcast, log, insecureAgent };
+module.exports = { app, server, store, broadcast, log };

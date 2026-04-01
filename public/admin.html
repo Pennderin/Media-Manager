@@ -1,831 +1,334 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Media Manager — Settings</title>
-  <script type="module" src="mm-components.js"></script>
-  <style>
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Media Manager — Admin</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0d1117; --bg-card: #161b22; --bg-input: #0d1117;
+    --border: #30363d; --text: #e6edf3; --text-muted: #7d8590;
+    --accent: #58a6ff; --success: #3fb950; --danger: #f85149; --warning: #d29922;
+    --radius: 10px;
+  }
+  body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .container { max-width: 720px; margin: 0 auto; padding: 32px 20px; }
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+  .subtitle { color: var(--text-muted); font-size: 13px; margin-bottom: 28px; }
+  .version { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); background: rgba(88,166,255,.1); padding: 2px 8px; border-radius: 4px; margin-left: 8px; }
 
-    body {
-      background: var(--mm-bg-base);
-      color: var(--mm-text-primary);
-      font-family: var(--mm-font-sans);
-      -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
-    }
+  /* Status badges */
+  .status-row { display: flex; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+  .badge { font-size: 11px; padding: 3px 10px; border-radius: 20px; display: inline-flex; align-items: center; gap: 4px; font-weight: 600; }
+  .badge.ok { background: rgba(63,185,80,.15); color: var(--success); }
+  .badge.err { background: rgba(248,81,73,.15); color: var(--danger); }
+  .badge.off { background: rgba(125,133,144,.15); color: var(--text-muted); }
+  .badge .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .badge.ok .dot { background: var(--success); }
+  .badge.err .dot { background: var(--danger); }
+  .badge.off .dot { background: var(--text-muted); }
 
-    /* ── Layout ──────────────────────────────────────── */
-    .page {
-      max-width: 800px;
-      margin: 0 auto;
-      padding: var(--mm-space-xl) var(--mm-space-lg) 80px;
-    }
+  /* Cards */
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+  .card h3 { font-size: 14px; font-weight: 600; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .card h3 .icon { color: var(--accent); font-size: 16px; }
 
-    /* ── Header ──────────────────────────────────────── */
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: var(--mm-space-xl);
-      flex-wrap: wrap;
-      gap: var(--mm-space-md);
-    }
+  /* Form rows */
+  .row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .row label { min-width: 110px; font-size: 13px; color: var(--text-muted); flex-shrink: 0; }
+  input[type="text"], input[type="password"], input[type="number"] {
+    flex: 1; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 13px; font-family: inherit; outline: none;
+    transition: border-color .2s;
+  }
+  input:focus { border-color: var(--accent); }
+  input::placeholder { color: var(--text-muted); opacity: .6; }
 
-    .header-left {
-      display: flex;
-      align-items: center;
-      gap: var(--mm-space-md);
-    }
+  /* Buttons */
+  .btn { padding: 7px 16px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; font-family: inherit; transition: all .15s; }
+  .btn-primary { background: var(--accent); color: #000; }
+  .btn-primary:hover { background: #79c0ff; }
+  .btn-ghost { background: transparent; color: var(--text-muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { color: var(--text); border-color: var(--text-muted); }
+  .btn-danger { background: rgba(248,81,73,.15); color: var(--danger); }
+  .btn-row { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+  .result { font-size: 12px; margin-left: 8px; font-family: 'JetBrains Mono', monospace; }
+  .result.ok { color: var(--success); }
+  .result.err { color: var(--danger); }
 
-    .header-logo {
-      width: 36px; height: 36px;
-      color: var(--mm-accent);
-      flex-shrink: 0;
-    }
+  /* Tabs */
+  .tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
+  .tab { padding: 10px 20px; font-size: 13px; font-weight: 600; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
 
-    .header-title {
-      font-size: var(--mm-text-2xl);
-      font-weight: var(--mm-weight-bold);
-      line-height: var(--mm-leading-tight);
-    }
+  /* Pipeline jobs */
+  .job { padding: 14px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 10px; }
+  .job-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .job-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 70%; }
+  .job-steps { display: flex; gap: 4px; margin-bottom: 6px; }
+  .step-badge { font-size: 10px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+  .step-badge.default { background: rgba(125,133,144,.1); color: var(--text-muted); }
+  .step-badge.active { background: rgba(88,166,255,.15); color: var(--accent); }
+  .step-badge.done { background: rgba(63,185,80,.15); color: var(--success); }
+  .job-progress { font-size: 12px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+  .job-error { font-size: 12px; color: var(--danger); margin-top: 4px; }
 
-    .header-version {
-      font-size: var(--mm-text-xs);
-      color: var(--mm-text-muted);
-      margin-left: var(--mm-space-xs);
-    }
-
-    .header-sub {
-      font-size: var(--mm-text-sm);
-      color: var(--mm-text-secondary);
-      margin-top: 2px;
-    }
-
-    /* ── Connection Status Row ────────────────────────── */
-    .status-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--mm-space-sm);
-      margin-bottom: var(--mm-space-2xl);
-    }
-
-    /* ── Section cards ────────────────────────────────── */
-    .section {
-      margin-bottom: var(--mm-space-xl);
-    }
-
-    .section-header {
-      display: flex;
-      align-items: center;
-      gap: var(--mm-space-sm);
-      font-size: var(--mm-text-base);
-      font-weight: var(--mm-weight-semibold);
-      color: var(--mm-text-primary);
-    }
-
-    .section-header mm-icon {
-      color: var(--mm-accent);
-    }
-
-    .section-tag {
-      font-size: var(--mm-text-xs);
-      color: var(--mm-text-muted);
-      font-weight: var(--mm-weight-normal);
-      margin-left: auto;
-    }
-
-    /* ── Field layout ─────────────────────────────────── */
-    .fields {
-      display: flex;
-      flex-direction: column;
-      gap: var(--mm-space-md);
-    }
-
-    .field-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: var(--mm-space-md);
-    }
-
-    .field-hint {
-      font-size: var(--mm-text-xs);
-      color: var(--mm-text-muted);
-      line-height: var(--mm-leading-normal);
-      margin-top: -4px;
-      padding-left: 2px;
-    }
-
-    .field-hint a {
-      color: var(--mm-accent-text);
-      text-decoration: none;
-    }
-    .field-hint a:hover {
-      text-decoration: underline;
-    }
-
-    /* ── Test result inline ───────────────────────────── */
-    .test-row {
-      display: flex;
-      align-items: center;
-      gap: var(--mm-space-md);
-      margin-top: var(--mm-space-xs);
-    }
-
-    .test-result {
-      font-size: var(--mm-text-xs);
-      font-weight: var(--mm-weight-medium);
-    }
-    .test-result.ok { color: var(--mm-success); }
-    .test-result.err { color: var(--mm-danger); }
-    .test-result.pending { color: var(--mm-text-muted); }
-
-    /* ── Library list ─────────────────────────────────── */
-    .lib-grid-header {
-      display: grid;
-      grid-template-columns: 1fr 1fr 60px 44px;
-      gap: var(--mm-space-sm);
-      font-size: var(--mm-text-xs);
-      color: var(--mm-text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.4px;
-      font-weight: var(--mm-weight-medium);
-      padding: 0 2px var(--mm-space-xs);
-    }
-
-    .lib-row {
-      display: grid;
-      grid-template-columns: 1fr 1fr 60px 44px;
-      gap: var(--mm-space-sm);
-      align-items: center;
-      padding: var(--mm-space-sm) 0;
-      border-bottom: 1px solid var(--mm-border);
-    }
-
-    .lib-row:last-child { border-bottom: none; }
-
-    .lib-toggle {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .lib-toggle input[type="checkbox"] {
-      width: 16px; height: 16px;
-      accent-color: var(--mm-accent);
-      cursor: pointer;
-    }
-
-    .lib-required {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .lib-add-row {
-      display: flex;
-      align-items: center;
-      gap: var(--mm-space-md);
-      margin-top: var(--mm-space-md);
-    }
-
-    /* ── Password toggle ──────────────────────────────── */
-    .pw-wrap {
-      position: relative;
-    }
-
-    .pw-toggle {
-      position: absolute;
-      right: 10px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      color: var(--mm-text-muted);
-      cursor: pointer;
-      padding: 4px;
-      display: flex;
-      align-items: center;
-      z-index: 2;
-      transition: color var(--mm-duration-fast) var(--mm-ease);
-    }
-    .pw-toggle:hover { color: var(--mm-text-secondary); }
-
-    /* ── Footer bar ───────────────────────────────────── */
-    .footer-bar {
-      display: flex;
-      align-items: center;
-      gap: var(--mm-space-md);
-      justify-content: flex-end;
-      margin-top: var(--mm-space-2xl);
-      padding-top: var(--mm-space-xl);
-      border-top: 1px solid var(--mm-border);
-    }
-
-    /* ── Responsive ───────────────────────────────────── */
-    @media (max-width: 600px) {
-      .page { padding: var(--mm-space-lg) var(--mm-space-md) 80px; }
-      .header { flex-direction: column; align-items: flex-start; }
-      .field-row { grid-template-columns: 1fr; }
-      .lib-grid-header,
-      .lib-row { grid-template-columns: 1fr 1fr 50px 40px; }
-      .footer-bar { flex-direction: column; }
-      .footer-bar mm-button { width: 100%; }
-    }
-  </style>
+  .help { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  .divider { border-top: 1px solid var(--border); margin: 14px 0; }
+</style>
 </head>
 <body>
+<div class="container">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+    <div style="display:flex;align-items:center"><h1>Media Manager</h1><span class="version" id="version">v3</span></div>
+  </div>
+  <p class="subtitle">Manual grab pipeline — Radarr/Sonarr handle the rest</p>
 
-<div class="page">
+  <div class="status-row" id="status-row"></div>
 
-  <!-- ── Header ─────────────────────────────────────── -->
-  <div class="header">
-    <div class="header-left">
-      <svg class="header-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="2" y="2" width="20" height="20" rx="2.5"/>
-        <circle cx="12" cy="12" r="3"/>
-        <path d="m16 2-4 4-4-4"/>
-      </svg>
-      <div>
-        <div class="header-title">Media Manager <span class="header-version" id="appVersion"></span></div>
-        <div class="header-sub">Server settings — saved to config.json</div>
-      </div>
+  <div class="tabs">
+    <div class="tab active" data-tab="pipeline">Pipeline</div>
+    <div class="tab" data-tab="settings">Settings</div>
+  </div>
+
+  <!-- Pipeline Tab -->
+  <div class="tab-content active" id="tab-pipeline">
+    <div style="display:flex;gap:8px;margin-bottom:16px">
+      <button class="btn btn-ghost" onclick="refreshPipeline()">↻ Refresh</button>
+      <button class="btn btn-danger" onclick="clearFinished()">Clear Finished</button>
     </div>
-    <mm-button variant="secondary" size="sm" id="testAllBtn">
-      <mm-icon slot="icon" name="refresh-cw" size="14"></mm-icon>
-      Test All Connections
-    </mm-button>
+    <div id="pipeline-list"><p style="color:var(--text-muted);font-size:13px">No jobs</p></div>
   </div>
 
-  <!-- ── Connection Status ──────────────────────────── -->
-  <div class="status-row" id="statusRow"></div>
+  <!-- Settings Tab -->
+  <div class="tab-content" id="tab-settings">
+    <!-- qBit NAS -->
+    <div class="card">
+      <h3><span class="icon">⬇</span> qBittorrent (NAS)</h3>
+      <div class="row"><label>Web UI URL</label><input type="text" id="s-qbit-url" placeholder="http://192.168.0.190:8085"></div>
+      <div class="row"><label>Username</label><input type="text" id="s-qbit-user"></div>
+      <div class="row"><label>Password</label><input type="password" id="s-qbit-pass"></div>
+      <div class="row"><label>Download Path</label><input type="text" id="s-qbit-dlpath" placeholder="/torrents"></div>
+      <div class="help">The container-internal mount path where qBit saves files (e.g. /torrents)</div>
+      <div class="btn-row"><button class="btn btn-ghost" onclick="testQbit()">Test</button><span class="result" id="r-qbit"></span></div>
+    </div>
 
-  <!-- ═══════════════════════════════════════════════════
-       SEEDBOX — qBittorrent
-       ═══════════════════════════════════════════════════ -->
-  <div class="section">
-    <mm-card padding="lg">
-      <div slot="header" class="section-header">
-        <mm-icon name="download" size="18"></mm-icon>
-        qBittorrent
-        <span class="section-tag">Seedbox</span>
-      </div>
+    <!-- qBit PC -->
+    <div class="card">
+      <h3><span class="icon">🖥</span> qBittorrent (MyPC)</h3>
+      <p class="help" style="margin-bottom:12px">Optional — a separate qBit on your PC behind a VPN. Magnets sent here download directly to your desktop.</p>
+      <div class="row"><label>Web UI URL</label><input type="text" id="s-pcqbit-url" placeholder="http://192.168.0.xxx:8080"></div>
+      <div class="row"><label>Username</label><input type="text" id="s-pcqbit-user"></div>
+      <div class="row"><label>Password</label><input type="password" id="s-pcqbit-pass"></div>
+      <div class="btn-row"><button class="btn btn-ghost" onclick="testPcQbit()">Test</button><span class="result" id="r-pcqbit"></span></div>
+    </div>
 
-      <div class="fields">
-        <mm-input id="qbitUrl" label="Web UI URL" placeholder="https://your-seedbox:8080"></mm-input>
-        <div class="field-hint">Your seedbox's qBittorrent web interface URL. Find it in your seedbox provider's dashboard.</div>
+    <!-- TMDB -->
+    <div class="card">
+      <h3><span class="icon">🎬</span> TMDB</h3>
+      <div class="row"><label>API Key</label><input type="text" id="s-tmdb-key" placeholder="Free at themoviedb.org"></div>
+      <div class="btn-row"><button class="btn btn-ghost" onclick="testTmdb()">Test</button><span class="result" id="r-tmdb"></span></div>
+    </div>
 
-        <div class="field-row">
-          <mm-input id="qbitUsername" label="Username"></mm-input>
-          <div class="pw-wrap">
-            <mm-input id="qbitPassword" label="Password" type="password"></mm-input>
-            <button class="pw-toggle" data-target="qbitPassword" title="Toggle visibility">
-              <mm-icon name="eye" size="16"></mm-icon>
-            </button>
-          </div>
-        </div>
-        <div class="field-hint">Your qBittorrent login credentials — usually provided by your seedbox host.</div>
+    <!-- Library Paths -->
+    <div class="card">
+      <h3><span class="icon">📁</span> Library Paths</h3>
+      <div class="row"><label>Movies</label><input type="text" id="s-path-movies"></div>
+      <div class="row"><label>TV Shows</label><input type="text" id="s-path-tv"></div>
+      <div class="row"><label>Kids Movies</label><input type="text" id="s-path-kids-movies"></div>
+      <div class="row"><label>Asian Movies</label><input type="text" id="s-path-asian-movies"></div>
+      <div class="row"><label>Asian Shows</label><input type="text" id="s-path-asian-shows"></div>
+      <div class="row"><label>Anime Movies</label><input type="text" id="s-path-anime-movies"></div>
+      <div class="row"><label>Anime Shows</label><input type="text" id="s-path-anime-shows"></div>
+    </div>
 
-        <div class="test-row">
-          <mm-button variant="secondary" size="sm" data-test="qbit">Test Connection</mm-button>
-          <span class="test-result" id="result-qbit"></span>
-        </div>
-      </div>
-    </mm-card>
+    <button class="btn btn-primary" onclick="saveSettings()" style="width:100%;padding:12px;font-size:14px">Save All Settings</button>
+    <span class="result" id="r-save" style="display:block;text-align:center;margin-top:8px"></span>
   </div>
+</div>
 
-  <!-- ═══════════════════════════════════════════════════
-       SEEDBOX — SFTP
-       ═══════════════════════════════════════════════════ -->
-  <div class="section">
-    <mm-card padding="lg">
-      <div slot="header" class="section-header">
-        <mm-icon name="hard-drive" size="18"></mm-icon>
-        SFTP
-        <span class="section-tag">Seedbox File Transfer</span>
-      </div>
+<script>
+const API = '';  // same origin
 
-      <div class="fields">
-        <div class="field-hint">Used to transfer completed downloads from your seedbox to the NAS. These credentials come from your seedbox provider.</div>
-
-        <div class="field-row">
-          <mm-input id="sftpHost" label="Host" placeholder="hostname or IP"></mm-input>
-          <mm-input id="sftpPort" label="Port" type="number" value="22"></mm-input>
-        </div>
-
-        <div class="field-row">
-          <mm-input id="sftpUsername" label="Username"></mm-input>
-          <div class="pw-wrap">
-            <mm-input id="sftpPassword" label="Password" type="password"></mm-input>
-            <button class="pw-toggle" data-target="sftpPassword" title="Toggle visibility">
-              <mm-icon name="eye" size="16"></mm-icon>
-            </button>
-          </div>
-        </div>
-
-        <mm-input id="sftpRemotePath" label="Remote Download Path" placeholder="/home/user/downloads"></mm-input>
-        <div class="field-hint">The folder on your seedbox where qBittorrent saves completed downloads.</div>
-
-        <div class="test-row">
-          <mm-button variant="secondary" size="sm" data-test="sftp">Test Connection</mm-button>
-          <span class="test-result" id="result-sftp"></span>
-        </div>
-      </div>
-    </mm-card>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════════
-       SERVICE — Prowlarr
-       ═══════════════════════════════════════════════════ -->
-  <div class="section">
-    <mm-card padding="lg">
-      <div slot="header" class="section-header">
-        <mm-icon name="globe" size="18"></mm-icon>
-        Prowlarr
-        <span class="section-tag">Indexer Search</span>
-      </div>
-
-      <div class="fields">
-        <mm-input id="prowlarrUrl" label="URL" placeholder="http://192.168.x.x:9696"></mm-input>
-        <div class="field-hint">Your Prowlarr instance URL. Install Prowlarr from <a href="https://prowlarr.com/" target="_blank">prowlarr.com</a> — it manages torrent indexer searches.</div>
-
-        <mm-input id="prowlarrApiKey" label="API Key"></mm-input>
-        <div class="field-hint">In Prowlarr: Settings &rarr; General &rarr; Security &rarr; API Key. Copy and paste it here.</div>
-
-        <div class="test-row">
-          <mm-button variant="secondary" size="sm" data-test="prowlarr">Test Connection</mm-button>
-          <span class="test-result" id="result-prowlarr"></span>
-        </div>
-      </div>
-    </mm-card>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════════
-       SERVICE — TMDB
-       ═══════════════════════════════════════════════════ -->
-  <div class="section">
-    <mm-card padding="lg">
-      <div slot="header" class="section-header">
-        <mm-icon name="film" size="18"></mm-icon>
-        TMDB
-        <span class="section-tag">Metadata &amp; Renaming</span>
-      </div>
-
-      <div class="fields">
-        <mm-input id="tmdbApiKey" label="API Key"></mm-input>
-        <div class="field-hint">Free API key for movie/TV metadata and posters. Get one in 2 minutes:
-          <a href="https://www.themoviedb.org/signup" target="_blank">1. Create account</a> &rarr;
-          <a href="https://www.themoviedb.org/settings/api" target="_blank">2. Request API key</a> &rarr; Copy the "API Key (v3 auth)" value.</div>
-
-        <div class="test-row">
-          <mm-button variant="secondary" size="sm" data-test="tmdb">Test Connection</mm-button>
-          <span class="test-result" id="result-tmdb"></span>
-        </div>
-      </div>
-    </mm-card>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════════
-       SERVICE — Plex (Optional)
-       ═══════════════════════════════════════════════════ -->
-  <div class="section">
-    <mm-card padding="lg">
-      <div slot="header" class="section-header">
-        <mm-icon name="tv" size="18"></mm-icon>
-        Plex
-        <span class="section-tag">Duplicate Detection &mdash; Optional</span>
-      </div>
-
-      <div class="fields">
-        <mm-input id="plexUrl" label="Server URL" placeholder="http://192.168.1.x:32400"></mm-input>
-        <div class="field-hint">Your local Plex server URL. Usually http://YOUR_NAS_IP:32400</div>
-
-        <div class="pw-wrap">
-          <mm-input id="plexToken" label="Token" type="password" placeholder="X-Plex-Token"></mm-input>
-          <button class="pw-toggle" data-target="plexToken" title="Toggle visibility">
-            <mm-icon name="eye" size="16"></mm-icon>
-          </button>
-        </div>
-        <div class="field-hint">Warns before grabbing content already in Plex. To find your token: open Plex Web &rarr; pick any media &rarr; Get Info &rarr; View XML &rarr; copy the "X-Plex-Token" from the URL bar.</div>
-      </div>
-    </mm-card>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════════
-       MEDIA LIBRARIES
-       ═══════════════════════════════════════════════════ -->
-  <div class="section">
-    <mm-card padding="lg">
-      <div slot="header" class="section-header">
-        <mm-icon name="folder" size="18"></mm-icon>
-        Media Libraries
-      </div>
-
-      <div class="fields">
-        <div class="field-hint">Define where your media goes. Paths are container-internal — they map to your NAS folders via Docker volume mounts. Movies and TV Shows are required. Add more for additional libraries (anime, kids, etc).</div>
-
-        <mm-input id="pathStaging" label="Staging Path" value="/staging"></mm-input>
-        <div class="field-hint">Temporary workspace for downloads before renaming. Gets cleaned up after each job.</div>
-
-        <div style="margin-top: var(--mm-space-sm);">
-          <div class="lib-grid-header">
-            <span>Library Name</span>
-            <span>Container Path</span>
-            <span>Shows?</span>
-            <span></span>
-          </div>
-          <div id="libraryList"></div>
-        </div>
-
-        <div class="lib-add-row">
-          <mm-button variant="secondary" size="sm" id="addLibBtn">
-            <mm-icon slot="icon" name="plus" size="14"></mm-icon>
-            Add Library
-          </mm-button>
-          <span class="field-hint">New libraries default to movie handling. Check "Shows?" for TV show logic.</span>
-        </div>
-      </div>
-    </mm-card>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════════
-       DIRECT TO PC
-       ═══════════════════════════════════════════════════ -->
-  <div class="section">
-    <mm-card padding="lg">
-      <div slot="header" class="section-header">
-        <mm-icon name="monitor" size="18"></mm-icon>
-        Direct to PC
-      </div>
-
-      <div class="fields">
-        <mm-input id="directToPCPath" label="Download Folder (on your PC)" placeholder="C:\Users\you\Desktop\Torrents"></mm-input>
-        <div class="field-hint">Where files go when you use "To My PC". Uses the PC path format (e.g. C:\Users\tabor\Desktop\Torrents).</div>
-      </div>
-    </mm-card>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════════
-       SERVER
-       ═══════════════════════════════════════════════════ -->
-  <div class="section">
-    <mm-card padding="lg">
-      <div slot="header" class="section-header">
-        <mm-icon name="settings" size="18"></mm-icon>
-        Server
-      </div>
-
-      <div class="fields">
-        <div class="field-row">
-          <mm-input id="serverPort" label="Port" type="number" value="9876"></mm-input>
-          <mm-input id="serverApiKey" label="API Key (optional)" placeholder="Leave blank for open access"></mm-input>
-        </div>
-        <div class="field-hint">Port default: 9876. API key protects the API — leave blank if only accessible on your local network.</div>
-        <div class="field-row" style="margin-top: 12px;">
-          <mm-input id="serverPin" label="Companion PIN" placeholder="e.g. 1234"></mm-input>
-        </div>
-        <div class="field-hint">PIN for external access to the Companion app (via Cloudflare). Local WiFi users bypass this. Leave blank for open access.</div>
-      </div>
-    </mm-card>
-  </div>
-
-  <!-- ═══════════════════════════════════════════════════
-       SMS NOTIFICATIONS
-       ═══════════════════════════════════════════════════ -->
-  <div class="section">
-    <mm-card padding="lg">
-      <div slot="header" class="section-header">
-        <mm-icon name="bell" size="18"></mm-icon>
-        SMS Notifications
-        <span class="section-tag">Gmail SMTP &mdash; Optional</span>
-      </div>
-
-      <div class="fields">
-        <div class="field-row">
-          <mm-input id="smsSmtpUser" label="Gmail Address" type="email" placeholder="you@gmail.com"></mm-input>
-          <div class="pw-wrap">
-            <mm-input id="smsSmtpPass" label="App Password" type="password" placeholder="16-character app password"></mm-input>
-            <button class="pw-toggle" data-target="smsSmtpPass" title="Toggle visibility">
-              <mm-icon name="eye" size="16"></mm-icon>
-            </button>
-          </div>
-        </div>
-        <div class="field-hint">Get notified via text when downloads are ready in Plex. Requires a Gmail account with an app password.
-          <a href="https://myaccount.google.com/apppasswords" target="_blank">Generate an app password here</a> (you may need to enable 2-Step Verification first).</div>
-      </div>
-    </mm-card>
-  </div>
-
-  <!-- ── Footer Actions ─────────────────────────────── -->
-  <div class="footer-bar">
-    <mm-button variant="secondary" size="md" id="testAllBtn2">
-      <mm-icon slot="icon" name="refresh-cw" size="16"></mm-icon>
-      Test All Connections
-    </mm-button>
-    <mm-button variant="primary" size="lg" id="saveBtn">
-      <mm-icon slot="icon" name="check-circle" size="18"></mm-icon>
-      Save All Settings
-    </mm-button>
-  </div>
-
-</div><!-- .page -->
-
-
-<script type="module">
-  import { MmToast } from './mm-components.js';
-
-  // ── Utility ───────────────────────────────────────────────
-  function escHtml(s) {
-    return String(s || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-  }
-
-  function showToast(msg, type) {
-    MmToast.show(msg, type, 4000);
-  }
-
-  // ── Helper: get/set mm-input value ────────────────────────
-  // mm-input uses .value property
-  function getVal(id) {
-    const el = document.getElementById(id);
-    return el ? el.value : '';
-  }
-
-  function setVal(id, val) {
-    const el = document.getElementById(id);
-    if (el && val !== undefined && val !== null) el.value = String(val);
-  }
-
-  // ── Password visibility toggle ────────────────────────────
-  document.querySelectorAll('.pw-toggle').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const target = document.getElementById(btn.dataset.target);
-      if (!target) return;
-      const isPassword = target.type === 'password';
-      target.type = isPassword ? 'text' : 'password';
-      // Swap icon
-      const icon = btn.querySelector('mm-icon');
-      if (icon) icon.name = isPassword ? 'eye' : 'eye';
-    });
+// Tabs
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('tab-' + t.dataset.tab).classList.add('active');
   });
+});
 
-  // ── Connection Status Chips ───────────────────────────────
-  const services = [
-    { id: 'qbit', label: 'Seedbox' },
-    { id: 'sftp', label: 'SFTP' },
-    { id: 'prowlarr', label: 'Prowlarr' },
-    { id: 'tmdb', label: 'TMDB' },
-  ];
+// API helpers
+async function api(method, url, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(API + url, opts);
+  return r.json();
+}
 
-  function buildStatusRow() {
-    const row = document.getElementById('statusRow');
-    row.innerHTML = services.map(s =>
-      `<mm-badge id="chip-${s.id}" variant="neutral" size="md" pulse>${s.label}</mm-badge>`
-    ).join('');
-  }
+function setResult(id, text, ok) {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'result ' + (ok ? 'ok' : 'err');
+}
 
-  function updateChip(name, ok) {
-    const chip = document.getElementById('chip-' + name);
-    if (!chip) return;
-    chip.variant = ok ? 'success' : 'danger';
-    chip.pulse = ok;
-  }
+// Status
+async function refreshStatus() {
+  const row = document.getElementById('status-row');
+  try {
+    const d = await api('GET', '/api/diagnostics');
+    document.getElementById('version').textContent = 'v' + (d.server?.version || '?');
+    const items = [
+      { label: 'qBit', ok: d.config?.qbitConfigured },
+      { label: 'TMDB', ok: d.config?.tmdbConfigured },
+      { label: 'Paths', ok: Object.values(d.paths || {}).some(p => p.exists) },
+    ];
+    // Check PC qBit
+    const s = await api('GET', '/api/settings/raw');
+    const pcConfigured = !!(s.pcQbit?.url);
+    items.push({ label: 'MyPC', ok: pcConfigured, off: !pcConfigured });
 
-  // ── Connection Tests ──────────────────────────────────────
-  async function testService(name) {
-    const el = document.getElementById('result-' + name);
-    if (el) {
-      el.className = 'test-result pending';
-      el.textContent = 'Testing...';
-    }
-    try {
-      const r = await fetch('/api/test/' + name);
-      const data = await r.json();
-      if (data.success) {
-        if (el) {
-          el.className = 'test-result ok';
-          el.textContent = 'Connected' + (data.version ? ' — ' + data.version : '');
-        }
-        updateChip(name, true);
-      } else {
-        if (el) {
-          el.className = 'test-result err';
-          el.textContent = data.error || 'Failed';
-        }
-        updateChip(name, false);
-      }
-    } catch (e) {
-      if (el) {
-        el.className = 'test-result err';
-        el.textContent = e.message;
-      }
-      updateChip(name, false);
-    }
-  }
+    row.innerHTML = items.map(i => {
+      const cls = i.off ? 'off' : (i.ok ? 'ok' : 'err');
+      return `<span class="badge ${cls}"><span class="dot"></span>${i.label}</span>`;
+    }).join('');
+  } catch (e) { row.innerHTML = '<span class="badge err"><span class="dot"></span>Offline</span>'; }
+}
 
-  async function testAll() {
-    for (const svc of services) testService(svc.id);
-  }
+// Settings
+async function loadSettings() {
+  const s = await api('GET', '/api/settings/raw');
+  document.getElementById('s-qbit-url').value = s.seedbox?.qbitUrl || '';
+  document.getElementById('s-qbit-user').value = s.seedbox?.qbitUsername || '';
+  document.getElementById('s-qbit-pass').value = s.seedbox?.qbitPassword || '';
+  document.getElementById('s-qbit-dlpath').value = s.seedbox?.localDownloadPath || '/torrents';
+  document.getElementById('s-pcqbit-url').value = s.pcQbit?.url || '';
+  document.getElementById('s-pcqbit-user').value = s.pcQbit?.username || '';
+  document.getElementById('s-pcqbit-pass').value = s.pcQbit?.password || '';
+  document.getElementById('s-tmdb-key').value = s.tmdb?.apiKey || '';
+  document.getElementById('s-path-movies').value = s.paths?.nasMovies || '';
+  document.getElementById('s-path-tv').value = s.paths?.nasTVShows || '';
+  document.getElementById('s-path-kids-movies').value = s.paths?.nasKidsMovies || '';
+  document.getElementById('s-path-asian-movies').value = s.paths?.nasAsianMovies || '';
+  document.getElementById('s-path-asian-shows').value = s.paths?.nasAsianShows || '';
+  document.getElementById('s-path-anime-movies').value = s.paths?.nasAnimeMovies || '';
+  document.getElementById('s-path-anime-shows').value = s.paths?.nasAnimeShows || '';
+}
 
-  // Wire up test buttons
-  document.querySelectorAll('[data-test]').forEach(btn => {
-    btn.addEventListener('click', () => testService(btn.dataset.test));
-  });
-  document.getElementById('testAllBtn').addEventListener('click', testAll);
-  document.getElementById('testAllBtn2').addEventListener('click', testAll);
+async function saveSettings() {
+  const v = id => document.getElementById(id).value.trim();
+  await api('PUT', '/api/settings', { key: 'seedbox', value: {
+    qbitUrl: v('s-qbit-url'), qbitUsername: v('s-qbit-user'), qbitPassword: v('s-qbit-pass'),
+    localDownloadPath: v('s-qbit-dlpath'),
+  }});
+  await api('PUT', '/api/settings', { key: 'pcQbit', value: {
+    url: v('s-pcqbit-url'), username: v('s-pcqbit-user'), password: v('s-pcqbit-pass'),
+  }});
+  await api('PUT', '/api/settings', { key: 'tmdb', value: { apiKey: v('s-tmdb-key') }});
+  await api('PUT', '/api/settings', { key: 'paths', value: {
+    nasMovies: v('s-path-movies'), nasTVShows: v('s-path-tv'), nasKidsMovies: v('s-path-kids-movies'),
+    nasAsianMovies: v('s-path-asian-movies'), nasAsianShows: v('s-path-asian-shows'),
+    nasAnimeMovies: v('s-path-anime-movies'), nasAnimeShows: v('s-path-anime-shows'),
+  }});
+  setResult('r-save', 'Saved ✓', true);
+  refreshStatus();
+}
 
-  // ── Library Management ────────────────────────────────────
-  let libraries = [];
+async function testQbit() {
+  setResult('r-qbit', 'Testing...', true);
+  await saveSettings();
+  const r = await api('GET', '/api/test/qbit');
+  setResult('r-qbit', r.success ? 'Connected ' + r.version : r.error, r.success);
+}
 
-  function renderLibraries() {
-    const el = document.getElementById('libraryList');
-    el.innerHTML = libraries.map((lib, i) => {
-      const required = i < 2;
-      return `<div class="lib-row">
-        <mm-input value="${escHtml(lib.name)}" placeholder="Library name" data-lib="${i}" data-field="name"></mm-input>
-        <mm-input value="${escHtml(lib.path)}" placeholder="/media/folder" data-lib="${i}" data-field="path"></mm-input>
-        <label class="lib-toggle" title="Check for TV show logic (episode matching, season folders)">
-          <input type="checkbox" ${lib.isShows ? 'checked' : ''} data-lib="${i}" data-field="isShows">
-        </label>
-        ${required
-          ? '<span class="lib-required"><mm-badge variant="warning" size="sm">req</mm-badge></span>'
-          : `<mm-button variant="ghost" size="sm" data-remove="${i}" title="Remove library"><mm-icon name="trash-2" size="14"></mm-icon></mm-button>`
-        }
-      </div>`;
+async function testPcQbit() {
+  setResult('r-pcqbit', 'Testing...', true);
+  await saveSettings();
+  const r = await api('GET', '/api/test/pcqbit');
+  setResult('r-pcqbit', r.success ? 'Connected ' + r.version : r.error, r.success);
+}
+
+async function testTmdb() {
+  setResult('r-tmdb', 'Testing...', true);
+  await saveSettings();
+  const r = await api('GET', '/api/test/tmdb');
+  setResult('r-tmdb', r.success ? 'OK' : r.error, r.success);
+}
+
+// Pipeline
+const STEP_LABELS = { grabbing: 'Grab', waiting_torrent: 'Download', delivering: 'Deliver' };
+const STEP_ORDER = ['grabbing', 'waiting_torrent', 'delivering', 'complete'];
+
+async function refreshPipeline() {
+  const r = await api('GET', '/api/pipeline/queue');
+  const el = document.getElementById('pipeline-list');
+  if (!r.success || !r.jobs?.length) { el.innerHTML = '<p style="color:var(--text-muted);font-size:13px">No pipeline jobs</p>'; return; }
+
+  el.innerHTML = [...r.jobs].reverse().map(j => {
+    const steps = [];
+    if (j.options.grabUrl) steps.push('grabbing');
+    if (j.options.torrentHash || j.options.grabUrl) steps.push('waiting_torrent');
+    steps.push('delivering');
+    const curIdx = STEP_ORDER.indexOf(j.step);
+
+    const stepsHtml = steps.map(s => {
+      const si = STEP_ORDER.indexOf(s);
+      let cls = 'default';
+      if (j.step === s && j.status === 'running') cls = 'active';
+      else if (j.status === 'done' || (j.status === 'running' && si < curIdx)) cls = 'done';
+      return `<span class="step-badge ${cls}">${STEP_LABELS[s] || s}</span>`;
     }).join('');
 
-    // Attach events to newly rendered inputs
-    el.querySelectorAll('mm-input[data-lib]').forEach(input => {
-      input.addEventListener('mm-change', (e) => {
-        const idx = parseInt(input.dataset.lib);
-        const field = input.dataset.field;
-        if (libraries[idx]) libraries[idx][field] = e.detail.value;
-      });
-      // Also listen to mm-input event for live updates
-      input.addEventListener('mm-input', (e) => {
-        const idx = parseInt(input.dataset.lib);
-        const field = input.dataset.field;
-        if (libraries[idx]) libraries[idx][field] = e.detail.value;
-      });
-    });
+    const statusCls = { running: 'ok', done: 'ok', failed: 'err', cancelled: 'off', queued: 'off' }[j.status] || 'off';
+    const target = j.options.target === 'pc' ? ' 🖥' : '';
 
-    el.querySelectorAll('input[type="checkbox"][data-lib]').forEach(cb => {
-      cb.addEventListener('change', () => {
-        const idx = parseInt(cb.dataset.lib);
-        if (libraries[idx]) libraries[idx].isShows = cb.checked;
-      });
-    });
+    return `<div class="job">
+      <div class="job-header">
+        <span class="job-name" title="${esc(j.name)}">${esc(j.name)}${target}</span>
+        <span class="badge ${statusCls}"><span class="dot"></span>${j.status}</span>
+      </div>
+      <div class="job-steps">${stepsHtml}</div>
+      ${j.progress ? `<div class="job-progress">${esc(j.progress)}</div>` : ''}
+      ${j.error ? `<div class="job-error">⚠ ${esc(j.error)}</div>` : ''}
+    </div>`;
+  }).join('');
+}
 
-    el.querySelectorAll('[data-remove]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const idx = parseInt(btn.dataset.remove);
-        if (idx >= 2) {
-          libraries.splice(idx, 1);
-          renderLibraries();
-        }
-      });
-    });
-  }
+async function clearFinished() {
+  await api('POST', '/api/pipeline/clearFinished');
+  refreshPipeline();
+}
 
-  document.getElementById('addLibBtn').addEventListener('click', () => {
-    libraries.push({ name: '', path: '/media/', isShows: false });
-    renderLibraries();
-  });
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-  // ── Field Map (config path -> element ID) ─────────────────
-  const fieldMap = {
-    'seedbox.qbitUrl': 'qbitUrl',
-    'seedbox.qbitUsername': 'qbitUsername',
-    'seedbox.qbitPassword': 'qbitPassword',
-    'seedbox.sftpHost': 'sftpHost',
-    'seedbox.sftpPort': 'sftpPort',
-    'seedbox.sftpUsername': 'sftpUsername',
-    'seedbox.sftpPassword': 'sftpPassword',
-    'seedbox.sftpRemotePath': 'sftpRemotePath',
-    'prowlarr.url': 'prowlarrUrl',
-    'prowlarr.apiKey': 'prowlarrApiKey',
-    'tmdb.apiKey': 'tmdbApiKey',
-    'plex.url': 'plexUrl',
-    'plex.token': 'plexToken',
-    'paths.staging': 'pathStaging',
-    'server.port': 'serverPort',
-    'server.apiKey': 'serverApiKey',
-    'server.pin': 'serverPin',
-    'sms.smtpUser': 'smsSmtpUser',
-    'sms.smtpPass': 'smsSmtpPass',
-    'directToPC.localPath': 'directToPCPath',
-  };
+// WebSocket for live updates
+function connectWs() {
+  try {
+    const wsUrl = location.origin.replace(/^http/, 'ws') + '/ws';
+    const ws = new WebSocket(wsUrl);
+    ws.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'pipeline:update') refreshPipeline();
+      } catch (err) {}
+    };
+    ws.onclose = () => setTimeout(connectWs, 3000);
+    ws.onerror = () => { try { ws.close(); } catch(e) {} };
+  } catch (e) { setTimeout(connectWs, 3000); }
+}
 
-  function getNestedValue(obj, path) {
-    return path.split('.').reduce((o, k) => o && o[k], obj);
-  }
-
-  // ── Load Settings ─────────────────────────────────────────
-  async function loadSettings() {
-    try {
-      const r = await fetch('/api/settings/raw');
-      const cfg = await r.json();
-
-      // Load simple fields
-      for (const [cfgPath, elId] of Object.entries(fieldMap)) {
-        const val = getNestedValue(cfg, cfgPath);
-        if (val !== undefined && val !== null) setVal(elId, val);
-      }
-
-      // Load libraries
-      if (cfg.paths && cfg.paths.libraries && cfg.paths.libraries.length) {
-        libraries = cfg.paths.libraries;
-      } else {
-        libraries = [
-          { name: 'Movies', path: cfg.paths?.nasMovies || '/media/movies', isShows: false },
-          { name: 'TV Shows', path: cfg.paths?.nasTVShows || '/media/tv', isShows: true },
-        ];
-        const legacy = [
-          { name: 'Kids Movies', key: 'nasKidsMovies', isShows: false },
-          { name: 'Asian Movies', key: 'nasAsianMovies', isShows: false },
-          { name: 'Asian Shows', key: 'nasAsianShows', isShows: true },
-          { name: 'Anime Movies', key: 'nasAnimeMovies', isShows: false },
-          { name: 'Anime Shows', key: 'nasAnimeShows', isShows: true },
-        ];
-        for (const l of legacy) {
-          const val = cfg.paths?.[l.key];
-          if (val) libraries.push({ name: l.name, path: val, isShows: l.isShows });
-        }
-      }
-      renderLibraries();
-
-      // Show version if available
-      if (cfg.version) {
-        document.getElementById('appVersion').textContent = 'v' + cfg.version;
-      }
-    } catch (e) {
-      showToast('Failed to load settings: ' + e.message, 'error');
-    }
-  }
-
-  // ── Save Settings ─────────────────────────────────────────
-  async function saveAll() {
-    const saveBtn = document.getElementById('saveBtn');
-    saveBtn.loading = true;
-
-    try {
-      const updates = {};
-
-      // Simple fields (skip redacted values to avoid overwriting real credentials)
-      for (const [cfgPath, elId] of Object.entries(fieldMap)) {
-        let val = getVal(elId);
-        if (val === '***REDACTED***') continue;
-        const el = document.getElementById(elId);
-        if (el && el.type === 'number') val = parseInt(val) || 0;
-        updates[cfgPath] = val;
-      }
-
-      // Libraries (new format)
-      updates['paths.libraries'] = libraries.filter(l => l.name && l.path);
-
-      // Write legacy flat paths for backward compatibility
-      const movieLibs = libraries.filter(l => !l.isShows && l.path);
-      const tvLibs = libraries.filter(l => l.isShows && l.path);
-      if (movieLibs[0]) updates['paths.nasMovies'] = movieLibs[0].path;
-      if (tvLibs[0]) updates['paths.nasTVShows'] = tvLibs[0].path;
-
-      for (const lib of libraries) {
-        if (!lib.path || !lib.name) continue;
-        const slug = lib.name.toLowerCase().replace(/\s+/g, '');
-        if (slug === 'kidsmovies') updates['paths.nasKidsMovies'] = lib.path;
-        else if (slug === 'asianmovies') updates['paths.nasAsianMovies'] = lib.path;
-        else if (slug === 'asianshows') updates['paths.nasAsianShows'] = lib.path;
-        else if (slug === 'animemovies') updates['paths.nasAnimeMovies'] = lib.path;
-        else if (slug === 'animeshows') updates['paths.nasAnimeShows'] = lib.path;
-      }
-
-      const r = await fetch('/api/settings/bulk', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updates),
-      });
-      const data = await r.json();
-
-      if (data.success) {
-        showToast('Settings saved successfully', 'success');
-        testAll();
-      } else {
-        showToast('Save failed: ' + (data.error || 'unknown'), 'error');
-      }
-    } catch (e) {
-      showToast('Save failed: ' + e.message, 'error');
-    } finally {
-      saveBtn.loading = false;
-    }
-  }
-
-  document.getElementById('saveBtn').addEventListener('click', saveAll);
-
-  // ── Init ──────────────────────────────────────────────────
-  buildStatusRow();
-  loadSettings();
-  setTimeout(testAll, 500);
+// Init
+loadSettings();
+refreshStatus();
+refreshPipeline();
+connectWs();
 </script>
-
 </body>
 </html>

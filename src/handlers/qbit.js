@@ -2,25 +2,17 @@
 // qBittorrent Handler — REST API version
 // ═══════════════════════════════════════════════════════════════════
 
-const https = require('https');
-const insecureAgent = new https.Agent({ rejectUnauthorized: false });
-
-// Helper: attach insecureAgent when URL is HTTPS
-function agentFor(url) {
-  return url.startsWith('https') ? { agent: insecureAgent } : {};
-}
-
 let sessionCookie = null;
 
 async function qbitRequest(store, endpoint, method = 'GET', body = null) {
   const s = store.get('seedbox'), base = s.qbitUrl.replace(/\/$/, '');
   if (!sessionCookie) {
     const r = await fetch(`${base}/api/v2/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: `username=${encodeURIComponent(s.qbitUsername)}&password=${encodeURIComponent(s.qbitPassword)}`, ...agentFor(base) });
+      body: `username=${encodeURIComponent(s.qbitUsername)}&password=${encodeURIComponent(s.qbitPassword)}` });
     if (r.ok) { const c = r.headers.get('set-cookie'); if (c) sessionCookie = c.split(';')[0]; }
     else throw new Error('qBittorrent login failed');
   }
-  const opts = { method, headers: { 'Cookie': sessionCookie || '' }, ...agentFor(base) };
+  const opts = { method, headers: { 'Cookie': sessionCookie || '' } };
   if (body) { opts.body = body; opts.headers['Content-Type'] = 'application/x-www-form-urlencoded'; }
   const r = await fetch(`${base}${endpoint}`, opts);
   if (r.status === 403) { sessionCookie = null; return qbitRequest(store, endpoint, method, body); }
@@ -51,13 +43,13 @@ async function addAndDetect(store, url, searchName) {
         const s2 = store.get('seedbox'), base2 = s2.qbitUrl.replace(/\/$/, '');
         if (!sessionCookie) {
           const lr2 = await fetch(`${base2}/api/v2/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: `username=${encodeURIComponent(s2.qbitUsername)}&password=${encodeURIComponent(s2.qbitPassword)}`, ...agentFor(base2) });
+            body: `username=${encodeURIComponent(s2.qbitUsername)}&password=${encodeURIComponent(s2.qbitPassword)}` });
           if (lr2.ok) { const c = lr2.headers.get('set-cookie'); if (c) sessionCookie = c.split(';')[0]; }
         }
         const directR = await fetch(`${base2}/api/v2/torrents/add`, {
           method: 'POST',
           headers: { 'Cookie': sessionCookie || '', 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `urls=${encodeURIComponent(url)}`, ...agentFor(base2)
+          body: `urls=${encodeURIComponent(url)}`
         });
         if (!directR.ok) throw new Error('Could not download torrent file and qBit also rejected URL');
         addBody = null;
@@ -65,57 +57,7 @@ async function addAndDetect(store, url, searchName) {
       }
 
       if (torrentResp) {
-        if (!torrentResp.ok) {
-          // On 410 (expired link), re-search: try 1337x first, fall back to ext.to
-          if (torrentResp.status === 410 && searchName) {
-            console.log(`[addAndDetect] 410 expired link, re-searching for: ${searchName}`);
-            try {
-              const prowlarrCfg = store.get('prowlarr') || {};
-              const prowlarrBase = (prowlarrCfg.url || '').replace(/\/$/, '');
-              const searchHeaders = { 'X-Api-Key': prowlarrCfg.apiKey, 'Accept': 'application/json' };
-              const searchQuery = searchName.replace(/[\.\-\_]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').slice(0, 6).join(' ');
-
-              const tryIndexer = async (indexerId) => {
-                const url = `${prowlarrBase}/api/v1/search?query=${encodeURIComponent(searchQuery)}&type=search&limit=10&indexerIds=${indexerId}`;
-                const resp = await fetch(url, { headers: searchHeaders, signal: AbortSignal.timeout(30000) });
-                if (!resp.ok) return null;
-                const results = await resp.json();
-                if (!results.length) return null;
-                return results[0]; // best match
-              };
-
-              // Try 1337x first (indexer 4), fall back to ext.to (indexer 7)
-              let match = await tryIndexer(4);
-              if (!match) {
-                console.log(`[addAndDetect] 1337x returned no results, trying ext.to...`);
-                match = await tryIndexer(7);
-              }
-
-              if (match) {
-                // Prefer actual magnet links over Prowlarr proxy URLs (which also expire/timeout)
-                const magnetUrl = match.magnetUrl || (match.guid && match.guid.startsWith('magnet:') ? match.guid : null);
-                const dlUrl = magnetUrl || match.downloadUrl || null;
-                if (dlUrl) {
-                  console.log(`[addAndDetect] Got fresh URL from ${match.indexer} (${magnetUrl ? 'magnet' : 'proxy'}), retrying...`);
-                  if (dlUrl.startsWith('magnet:')) {
-                    // Magnet link — send directly to qBit, skip the HTTP fetch
-                    addBody = `urls=${encodeURIComponent(dlUrl)}`;
-                    addContentType = 'application/x-www-form-urlencoded';
-                    torrentResp = { ok: true }; // satisfy the !torrentResp.ok check below
-                  } else {
-                    torrentResp = await fetch(dlUrl, { headers, redirect: 'follow', signal: AbortSignal.timeout(30000) });
-                  }
-                }
-              }
-            } catch (retryErr) {
-              console.log(`[addAndDetect] Re-search failed: ${retryErr.message}`);
-            }
-          }
-          if (!torrentResp.ok) throw new Error(`Prowlarr returned ${torrentResp.status} downloading torrent`);
-        }
-
-        // If addBody already set (e.g. from magnet scrape during 410 retry), skip response parsing
-        if (!addBody) {
+        if (!torrentResp.ok) throw new Error(`Prowlarr returned ${torrentResp.status} downloading torrent`);
         const contentType = torrentResp.headers.get('content-type') || '';
         const finalUrl = torrentResp.url || url;
 
@@ -137,7 +79,6 @@ async function addAndDetect(store, url, searchName) {
           addBody = Buffer.concat([Buffer.from(header), torrentBuf, Buffer.from(`\r\n--${boundary}--\r\n`)]);
           addContentType = `multipart/form-data; boundary=${boundary}`;
         }
-        } // end if (!addBody)
       }
     }
 
@@ -145,13 +86,13 @@ async function addAndDetect(store, url, searchName) {
       const s = store.get('seedbox'), base = s.qbitUrl.replace(/\/$/, '');
       if (!sessionCookie) {
         const lr = await fetch(`${base}/api/v2/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `username=${encodeURIComponent(s.qbitUsername)}&password=${encodeURIComponent(s.qbitPassword)}`, ...agentFor(base) });
+          body: `username=${encodeURIComponent(s.qbitUsername)}&password=${encodeURIComponent(s.qbitPassword)}` });
         if (lr.ok) { const c = lr.headers.get('set-cookie'); if (c) sessionCookie = c.split(';')[0]; }
       }
       const addR = await fetch(`${base}/api/v2/torrents/add`, {
         method: 'POST',
         headers: { 'Cookie': sessionCookie || '', 'Content-Type': addContentType },
-        body: addBody, ...agentFor(base)
+        body: addBody
       });
       if (!addR.ok) return { success: false, error: `qBittorrent rejected torrent: ${addR.status}` };
     }
@@ -204,27 +145,7 @@ function setupQbitRoutes(app, store, auth) {
 
   app.post('/api/qbit/add', auth, async (req, res) => {
     try {
-      const { url, torrentData, filename } = req.body;
-
-      // Handle raw .torrent file upload (base64 encoded)
-      if (torrentData) {
-        const torrentBuf = Buffer.from(torrentData, 'base64');
-        const boundary = '----MediaManager' + Date.now();
-        const fname = filename || 'upload.torrent';
-        const header = '--' + boundary + '\r\nContent-Disposition: form-data; name="torrents"; filename="' + fname + '"\r\nContent-Type: application/x-bittorrent\r\n\r\n';
-        const body = Buffer.concat([Buffer.from(header), torrentBuf, Buffer.from('\r\n--' + boundary + '--\r\n')]);
-        const s = store.get('seedbox'), base = s.qbitUrl.replace(/\/$/, '');
-        if (!sessionCookie) {
-          const lr = await fetch(base + '/api/v2/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'username=' + encodeURIComponent(s.qbitUsername) + '&password=' + encodeURIComponent(s.qbitPassword), ...agentFor(base) });
-          if (lr.ok) { const c = lr.headers.get('set-cookie'); if (c) sessionCookie = c.split(';')[0]; }
-        }
-        const r = await fetch(base + '/api/v2/torrents/add', {
-          method: 'POST', headers: { 'Cookie': sessionCookie || '', 'Content-Type': 'multipart/form-data; boundary=' + boundary }, body, ...agentFor(base)
-        });
-        return res.json({ success: r.ok });
-      }
-
+      const { url } = req.body;
       if (url.startsWith('magnet:')) {
         const r = await qbitRequest(store, '/api/v2/torrents/add', 'POST', `urls=${encodeURIComponent(url)}`);
         return res.json({ success: r.ok });
@@ -238,11 +159,11 @@ function setupQbitRoutes(app, store, auth) {
       const s = store.get('seedbox'), base = s.qbitUrl.replace(/\/$/, '');
       if (!sessionCookie) {
         const lr = await fetch(`${base}/api/v2/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `username=${encodeURIComponent(s.qbitUsername)}&password=${encodeURIComponent(s.qbitPassword)}`, ...agentFor(base) });
+          body: `username=${encodeURIComponent(s.qbitUsername)}&password=${encodeURIComponent(s.qbitPassword)}` });
         if (lr.ok) { const c = lr.headers.get('set-cookie'); if (c) sessionCookie = c.split(';')[0]; }
       }
       const r = await fetch(`${base}/api/v2/torrents/add`, {
-        method: 'POST', headers: { 'Cookie': sessionCookie || '', 'Content-Type': `multipart/form-data; boundary=${boundary}` }, body, ...agentFor(base)
+        method: 'POST', headers: { 'Cookie': sessionCookie || '', 'Content-Type': `multipart/form-data; boundary=${boundary}` }, body
       });
       res.json({ success: r.ok });
     } catch (e) { res.json({ success: false, error: e.message }); }
