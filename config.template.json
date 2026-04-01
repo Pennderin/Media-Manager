@@ -1,37 +1,26 @@
 {
   "seedbox": {
-    "qbitUrl": "https://your-seedbox:8080",
+    "qbitUrl": "http://YOUR_NAS_IP:8085",
     "qbitUsername": "admin",
-    "qbitPassword": "your-qbit-password",
-    "sftpHost": "your-seedbox-hostname",
-    "sftpPort": 22,
-    "sftpUsername": "your-ssh-user",
-    "sftpPassword": "your-ssh-password",
-    "sftpRemotePath": "/home/user/downloads"
+    "qbitPassword": "",
+    "localDownloadPath": "/torrents"
   },
   "paths": {
-    "staging": "/staging",
-    "nasMovies": "/media/movies",
-    "nasTVShows": "/media/tv",
-    "nasKidsMovies": "/media/kids-movies",
-    "nasAsianMovies": "/media/asian-movies",
-    "nasAsianShows": "/media/asian-shows",
-    "nasAnimeMovies": "/media/anime-movies",
-    "nasAnimeShows": "/media/anime-shows"
-  },
-  "prowlarr": {
-    "url": "http://your-prowlarr:9696",
-    "apiKey": "your-prowlarr-api-key"
+    "libraries": [
+      { "name": "Movies", "path": "/media/movies", "isShows": false },
+      { "name": "TV Shows", "path": "/media/tv", "isShows": true }
+    ]
   },
   "tmdb": {
-    "apiKey": "your-tmdb-api-key"
+    "apiKey": ""
+  },
+  "pcQbit": {
+    "url": "",
+    "username": "",
+    "password": ""
   },
   "server": {
     "port": 9876,
     "apiKey": ""
-  },
-  "directToPC": {
-    "enabled": false,
-    "localPath": "C:\\Users\\tabor\\Desktop\\Torrents"
   }
 }

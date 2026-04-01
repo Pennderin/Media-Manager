@@ -1,23 +1,18 @@
 # ═══════════════════════════════════════════════════════════════════
 # Media Manager — Docker Compose
-# Single container: server + companion PWA
+# Manual grab pipeline: magnet → qBit → library → TMDB rename
 # ═══════════════════════════════════════════════════════════════════
 #
 # QUICK START:
-#   1. Copy config.template.json -> config/config.json
-#   2. Fill in your seedbox, Prowlarr, and TMDB settings
-#   3. Adjust the volume paths below to match YOUR NAS layout
-#   4. docker-compose up -d
-#
-# Access:
-#   Admin:     http://YOUR_NAS_IP:9876/admin
-#   Companion: http://YOUR_NAS_IP:9876/companion
+#   1. Adjust the volume paths below to match YOUR NAS layout
+#   2. docker-compose up -d
+#   3. Open http://YOUR_NAS_IP:9876/admin and fill in Settings
 #
 # ═══════════════════════════════════════════════════════════════════
 
 services:
   media-manager:
-    build: ./media-manager-server
+    build: .
     container_name: media-manager
     restart: unless-stopped
     ports:
@@ -26,36 +21,25 @@ services:
       # Config — persists settings between container restarts
       - ./config:/config
 
-      # Staging — temporary workspace for downloads before renaming/moving
-      # This should be a fast drive (SSD preferred) with enough space for
-      # your largest download. It gets cleaned up after each pipeline job.
-      - /mnt/user/Plex/Z Staging:/staging
+      # Torrents — qBittorrent's download directory
+      # Must match qBit's save path. The container path (/torrents)
+      # goes in Settings → qBittorrent → Download Path
+      - /mnt/user/Torrents:/torrents
 
-      # ── Required Libraries ──────────────────────────────────────
-      # At minimum you need Movies and TV Shows.
-      # The container path (right side) must match what's in your settings.
+      # ── Media Libraries ─────────────────────────────────────────
+      # One mount per library. The container path (right side) is
+      # what you enter in Settings → Library Paths.
+      #
+      # Required:
       - /mnt/user/Plex/Movies:/media/movies
       - /mnt/user/Plex/TV Shows:/media/tv
-
-      # ── Additional Libraries (optional) ─────────────────────────
-      # Add more volume mounts for each library you create in settings.
-      # The container path should match the path you enter in the
-      # "Media Libraries" section at http://YOUR_NAS_IP:9876/admin
       #
-      # Examples:
+      # Optional — uncomment and adjust as needed:
       # - /mnt/user/Plex/Kids Movies:/media/kids-movies
       # - /mnt/user/Plex/Anime Movies:/media/anime-movies
       # - /mnt/user/Plex/Anime Shows:/media/anime-shows
       # - /mnt/user/Plex/Asian Movies:/media/asian-movies
       # - /mnt/user/Plex/Asian Shows:/media/asian-shows
     environment:
-      - PORT=9876
-      - CONFIG_DIR=/config
-      - LOG_LEVEL=info
       - TZ=America/New_York
-      # Companion PIN auth (optional — leave empty for open access)
-      # - PIN=1234
-      # SMTP credentials for SMS-via-email notifications (optional)
-      # These override the values in config.json if set
-      # - SMTP_USER=your-email@gmail.com
-      # - SMTP_PASS=your-app-password
+      - LOG_LEVEL=info
